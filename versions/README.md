@@ -1,24 +1,14 @@
-# fitAI 版本存档
+# fitAI 历史版本
 
-这两个目录是可独立运行的源码副本。原项目仍在仓库根目录的 `src/` 开发。
+`fitai-4e6b9f8/` 是 Git 提交 `4e6b9f8`（`folder structure and better use of feedback`）的完整文件快照，也就是历史记录截图第一排所指的版本。它保留了该提交当时的源码、测试、构建脚本和配置，并非从当前复杂版筛掉某些练习模式。
 
-| 目录 | 内容 | 来源 |
-| --- | --- | --- |
-| `fitai-current-2026-10-09/` | 2026-10-09 的完整 fitAI，包含当时 `src/app.js`、`src/index.html`、`src/style.css` 中尚未提交的改动 | 当前工作区快照，基于 `d7ad716` |
-| `fitai-basic-stretch-yoga/` | 只有 Stretch 和 Yoga 两个练习分类，共 32 个动作 | Git 提交 `4e6b9f8`，新增其他模式前的最后一版 |
-
-分别在对应目录运行：
+在仓库根目录运行：
 
 ```sh
-cd versions/fitai-current-2026-10-09
+cd versions/fitai-4e6b9f8
 npm run dev
 ```
 
-```sh
-cd versions/fitai-basic-stretch-yoga
-npm run dev
-```
+然后打开 `http://localhost:5173/`。也可在该目录运行 `npm test` 和 `npm run build`。仓库根目录的 `src/` 仍是继续开发的复杂版。
 
-当前版默认使用 `http://127.0.0.1:5187/`，基础版默认使用 `http://localhost:5173/`。两个版本可以同时运行。各目录也可以分别执行 `npm test` 和 `npm run build`。
-
-`build/` 是生成目录，不包含在快照中。两版的 3D 与姿势追踪资源需要联网从第三方 CDN 加载。
+此前的复杂版副本曾保存在提交 `a6ee99f` 中；其文件目前不在工作区的 `versions/` 目录下，仍可从 Git 提交恢复。
