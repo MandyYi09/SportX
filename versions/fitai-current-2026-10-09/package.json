@@ -1,0 +1,10 @@
+{
+  "name": "fitai-movement-practice",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "python3 -m http.server 5187 --bind 127.0.0.1 --directory src",
+    "test": "node tests/pose-comparison.mjs",
+    "build": "node scripts/build.mjs"
+  }
+}
