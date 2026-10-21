@@ -6,6 +6,22 @@ A browser-only prototype using Three.js 0.180.0 and MediaPipe Tasks Vision 0.10.
 
 Edit the application in `src/`. Run `npm run dev` to serve it at `http://127.0.0.1:5187/`, or serve `src/` using any static HTTP server. Keep that terminal open while using the preview. Run `npm test` for the pose checks. `npm run build` copies public application files into the ignored `build/` folder used for hosting; no dependencies need to be installed. Camera access is opt-in; frames are processed locally and never uploaded. Libraries, fonts and the pose model load from third-party CDNs, so the first visit requires network access.
 
+## Athlete recording studies — 2026-10-21
+
+The library now has 51 movements. Tennis provides forehand and two-handed backhand, each with backswing, racket drop, swing/follow-through, and a complete stroke. Each set of three slices is contiguous and comes from one complete recording (`wangqiu_04_016` for forehand, `wangqiu_06_020` for backhand). The user excluded both `02_013` files and `08_024`; they are not used. The user-confirmed rowing studies are 出手划, 1/2 划 and 全桨划. The clay recordings are catalogued as 连续完整动作, 持枪准备, 举枪贴腮 and 下枪; the last clip isolates the lowering portion of `sheji_04_010`.
+
+`src/motion-catalog.mjs` records the reference filename and reviewed source interval for each independent 3D movement. Recordings are development references only: the website does not include, load, display or offer downloads of mocap videos. Local extracted clips and posters are preserved outside the public website in the ignored `artifacts/motion-reference/` folder.
+
+`src/motion-rig.mjs` contains manually video-fitted keyframes with fixed segment lengths, two-bone IK, a shared backhand grip and a separate racket direction. It does **not** recover the original skeletal motion capture from MP4s. Full strokes and phases sample the same source-time track. Exact joint rotations and timing still require original FBX/BVH/C3D data and review; these demonstrations do not produce technique scores. Observations and user corrections are retained separately in `analysis/motion-video-review-2026-10-20.json`.
+
+All 15 movements have independent 3D playback, driven by `src/motion-clock.mjs` without a media element. Selecting a movement starts its demonstration (except with reduced-motion preferences); controls support pause, restart, scrubbing and 0.25×/0.5×/1× speed. Each demonstration holds its final pose on completion. Hiding the page pauses playback. The original model-focused layout and viewing angles are retained.
+
+Tennis uses its own curled-finger hand mesh and shared handle/wrist attachment dimensions (`tennis-hand.mjs`, `tennis-grip.mjs`). The dominant hand holds near the butt and the second backhand hand holds above it. Wrist IK uses radial palm offsets; mirror mode reflects both geometry and attachments. The “Grip detail” control zooms the existing 3D view for inspection. This corrects attachment geometry, not a measured bevel-specific grip classification.
+
+Rowing and clay use explicit equipment contact frames (`equipment-grip.mjs`) and appropriately sized wrapped hands. Rowing handles pass through both the grasp center and fixed oarlock, maintaining fixed oar length and palms above the handles. Clay hand targets share fixed exterior model attachment points; arm IK moves the rigid prop as a unit. These are visual attachment corrections, with no functional firing or aiming model. Both modes provide “Hand detail” views. Tests check wrist attachment, handle/pivot alignment, fixed contact spacing and continuous hand orientation throughout all seven recordings.
+
+`npm test` covers reference poses, source exclusions, full/phase consistency, mirroring, constant bone lengths, seated knee direction, fixed rowing feet, backhand grip spacing, animation continuity, independent playback timing and exclusion of recorded media from the public website. No media has been uploaded or deployed.
+
 Includes overhead reach, standing side bend, Mountain pose and Warrior II, a rotatable 3D reference, mirrored camera landmarks, visibility-gated alignment feedback, and an independent manual hold timer. The movement definitions and pure pose checks are separated to support future exercises.
 
 ## Limitations

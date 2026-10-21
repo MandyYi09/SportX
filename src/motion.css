@@ -1,0 +1,15 @@
+.motion-player{min-width:0;margin-top:14px;border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--surface);color:var(--ink)}
+.motion-heading{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.motion-heading h3{font-size:15px;margin:0}
+.motion-phase{font-size:12px;padding:6px 9px;border-radius:6px;background:var(--soft);color:var(--muted)}
+.motion-controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.motion-controls button,.motion-controls select{border:1px solid var(--line);border-radius:7px;padding:10px 12px;background:var(--soft);color:var(--ink);font:inherit;font-size:13px;min-height:40px}
+.motion-controls .primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.motion-controls label{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+#motion-time{font-size:12px;font-variant-numeric:tabular-nums;margin-left:auto;color:var(--muted)}
+#motion-seek{width:100%;margin:12px 0 0;accent-color:var(--accent);cursor:pointer;min-height:24px}
+@media(max-width:700px){
+ .motion-player{padding:14px}
+ .motion-controls{gap:7px}
+ #motion-time{flex-basis:100%;margin:4px 0 0}
+}

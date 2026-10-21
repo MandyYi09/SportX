@@ -6,7 +6,7 @@ import {comparePose,normalizedLive} from '../src/comparison.mjs';
 import {evaluate} from '../src/pose-rules.mjs';
 import {matchQuality} from '../src/match-quality.mjs';
 import {PosePresence} from '../src/pose-presence.mjs';
-assert.equal(poses.length,48);assert.equal(new Set(poses.map(p=>p.id)).size,48);
+assert.equal(poses.length,51);assert.equal(new Set(poses.map(p=>p.id)).size,51);
 for(const pose of poses)for(const flipped of [false,true]){
  const ref=getReference(pose.id,flipped);assert.equal(ref.length,12);
  let p=Array.from({length:33},()=>({x:.5,y:.5,visibility:.99}));
@@ -49,4 +49,4 @@ for(const pose of poses.filter(p=>p.tracking==='upper')){
  prepared[23].visibility=.1;assert.equal(evaluate(pose.id,prepared).state,'unknown');
  prepared[23].visibility=.99;prepared[13].x=NaN;assert.equal(evaluate(pose.id,prepared).state,'unknown');
 }
-console.log('PASS: 48 unique movements, 96 mirrored references, demo score exclusion, upper-body and side-view confidence gating, corrections, color states and fullscreen acquisition/loss.');
+console.log('PASS: 51 unique movements, 102 mirrored references, demo score exclusion, upper-body and side-view confidence gating, corrections, color states and fullscreen acquisition/loss.');

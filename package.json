@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "python3 -m http.server 5187 --bind 127.0.0.1 --directory src",
-    "test": "node tests/pose-comparison.mjs",
+    "dev": "python3 scripts/serve.py",
+    "test": "node tests/pose-comparison.mjs && node tests/motion-playback.mjs",
     "build": "node scripts/build.mjs"
   }
 }

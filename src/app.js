@@ -4,11 +4,16 @@ import { createFocusView } from './focus-view.mjs';
 import { evaluate } from './pose-rules.mjs';
 import { getReference, landmarkIds } from './reference.mjs';
 import { comparePose, projectReference, normalizedLive } from './comparison.mjs';
+import {createMotionPlayer} from './motion-player.mjs?v=22';
 const $ = id => document.getElementById(id);
+const motionPlayer=createMotionPlayer();
 import { poses } from './exercises.mjs';
 import { categoryLabels, practiceModes, sequenceFor } from './practice-modes.mjs';
 import {createHand, orientHand, createWristDetail, wristExamples} from './hand-guide.mjs';
-import {setLanguage, registerPoseTranslations, startLocalization, refreshLocalization} from './i18n.mjs';
+import {createTennisHand,createWrappedHand,placeTennisHand,createRelaxedHand} from './tennis-hand.mjs';
+import {tennisGrip} from './tennis-grip.mjs';
+import {rowingGrip,clayGrip} from './equipment-grip.mjs';
+import {setLanguage, registerPoseTranslations, startLocalization, refreshLocalization} from './i18n.mjs?v=21';
 const selectedPose = () => poses.find(p => p.id === current);
 const framing = id => isUpperPose(id) ? 'Face the camera with shoulders, elbows, wrists and hips visible. Feet can stay out of frame.' : isSidePose(id) ? 'Turn side-on with your whole body visible.' : 'Face the camera with your whole body visible.';
 const presence = new PosePresence();
@@ -16,6 +21,7 @@ const focusView = createFocusView($('stage'),()=>{presence.dismiss();focusView.s
 let lastPoseFrame=0;
 let flipped = false;
 let wristMode = 'aligned';
+let gripDetail = false;
 let guideUnavailable = false;
 let mobilityMode = 'stretch';
 const activeCategory = () => filter === 'mobility' ? mobilityMode : filter;
@@ -47,6 +53,9 @@ function selectPose(id, keepSide=false) {
  if(stream && selectedPose().demoOnly !== p.demoOnly)stopCamera();
  if(!p.wristStudy || !selectedPose().wristStudy)wristMode='aligned';
  current=id; if(!keepSide)flipped=false; stopTimer(); remaining=p.hold || 30; updateTimer();
+ gripDetail=false;$('grip-detail').hidden=!p.motion;$('grip-detail').textContent=p.type==='tennis'?'Grip detail':'Hand detail';$('grip-detail').setAttribute('aria-pressed','false');
+ document.querySelector('.studio').classList.toggle('motion-study',!!p.motion);
+ document.querySelector('.workspace').classList.toggle('motion-workspace',!!p.motion);
  $('hold-duration').textContent=p.demoOnly ? 'Step by step' : remaining+' sec';
  $('duration-label').textContent=p.demoOnly ? 'At your own pace' : p.type==='gentle' ? 'Optional practice time' : 'Suggested hold';
  $('pose-tag').textContent=`${categoryLabels[p.type].toUpperCase()} · ${p.area}`;
@@ -55,14 +64,14 @@ function selectPose(id, keepSide=false) {
  $('angle-label').textContent=p.demoOnly ? '↔ Rotate to explore this step' : isUpperPose(id) ? '↔ Front camera · upper body' : isSidePose(id) ? '↔ Side-on camera · full body' : '↔ Face your camera';
  $('camera-setup').textContent=p.demoOnly ? 'Place your camera where your body and hands are visible. Live preview only; no technique scoring.' : 'Camera setup: '+framing(id);
  $('stage-note').hidden=!guideUnavailable || !!stream;
- $('reference-label').textContent=p.demoOnly ? 'Illustrative 3D movement study' : isUpperPose(id) ? '3D reference · upper-body estimate' : '3D reference · 2D pose estimate';
+ $('reference-label').textContent=p.motion ? '3D movement demonstration' : p.demoOnly ? 'Illustrative 3D movement study' : isUpperPose(id) ? '3D reference · upper-body estimate' : '3D reference · 2D pose estimate';
  $('cues').innerHTML=p.cues.map((c,i)=>`<div class="cue"><span>${i+1}</span>${c}</div>`).join('');
  $('wrist-study').hidden=!p.wristStudy;
  $('cue-heading').textContent=p.demoOnly ? 'Explore this step' : 'Move comfortably';
  const mode=practiceModes[p.type]; $('practice-note').hidden=!mode;
  $('practice-note-text').textContent=mode?.note || ''; $('practice-source').textContent=mode?.sourceLabel || ''; $('practice-source').hidden=!mode?.source; if(mode?.source)$('practice-source').href=mode.source;
  const sequence=sequenceFor(id); $('sequence').hidden=!sequence.length;
- $('sequence-title').textContent=mode?.title || ''; $('sequence-count').textContent=sequence.length ? `${sequence.findIndex(x=>x.id===id)+1} / ${sequence.length}` : '';
+ $('sequence-title').textContent=p.groupTitle || mode?.title || ''; $('sequence-count').textContent=sequence.length ? `${sequence.findIndex(x=>x.id===id)+1} / ${sequence.length}` : '';
  $('sequence-steps').replaceChildren();
  sequence.forEach((step,i)=>{const b=document.createElement('button'); b.textContent=`${i+1}. ${step.name}`;b.setAttribute('aria-pressed',String(step.id===id));b.onclick=()=>{selectPose(step.id,true);$('sequence-steps').children[i].focus({preventScroll:true});};$('sequence-steps').append(b);});
  $('timer-panel').hidden=$('timer-note').hidden=!!p.demoOnly;
@@ -72,6 +81,7 @@ function selectPose(id, keepSide=false) {
  $('camera-title').textContent=p.demoOnly ? 'Practice with a live preview.' : 'Your space. Your pace.';
  $('camera-sub').textContent=p.demoOnly ? stream ? 'Your camera is beside the 3D guide. No technique scoring.' : 'Enable camera to see yourself beside the 3D guide. No technique scoring.' : stream ? framing(id) : 'Enable your camera for an approximate body-shape comparison.';
  $('show-camera').hidden=document.querySelector('.comparison-panel').hidden=!!p.demoOnly;
+ motionPlayer.select(id);motionPlayer.mirror(flipped);
  drawCards();sceneApi?.setPose(id);setWristMode(wristMode); $('switch-side').hidden=!(p.asymmetric || ['side','warrior'].includes(id));
  clearComparison();
  setFeedback({state:'unknown',title:p.demoOnly ? stream ? 'Live preview · no score' : 'Movement study' : stream ? 'Find your starting position' : 'Ready when you are',text:p.demoOnly ? stream ? 'Use the live preview to observe yourself. The illustrated guide does not assess your technique.' : 'Use the numbered steps to inspect each position. You can enable camera for self-observation without scoring.' : stream ? framing(id) : 'You can follow the guide without a camera, or enable it for body-shape feedback.'});
@@ -182,7 +192,8 @@ $('focus-stop').onclick=()=>stopCamera();
 setInterval(()=>{if(stream && performance.now()-lastPoseFrame>500){focusView.setExpanded(presence.update(false,performance.now()));sceneApi?.setLive(null);renderComparison(null);}},250);
 $('show-camera').onclick=()=>$('camera-dialog').showModal();
 $('close-camera').onclick=()=>$('camera-dialog').close();
-$('switch-side').onclick=()=>{flipped=!flipped;sceneApi?.setPose(current);clearComparison();};
+$('switch-side').onclick=()=>{flipped=!flipped;motionPlayer.mirror(flipped);sceneApi?.setPose(current);clearComparison();};
+$('grip-detail').onclick=()=>{gripDetail=!gripDetail;$('grip-detail').setAttribute('aria-pressed',String(gripDetail));};
 function drawComparison(ctx, p, result, width, height) {
  if(!p)return;
  const ghost=result ? projectReference(current,p,width,height,flipped) : null;
@@ -211,6 +222,13 @@ async function initThree() {
         const handMaterial=new THREE.MeshStandardMaterial({color:0x91a979,roughness:.65});
         const wristMaterial=new THREE.MeshStandardMaterial({color:0xd8ecad,roughness:.55});
         const hands=[-1,1].map(side=>{const hand=createHand(THREE,handMaterial,side);group.add(hand.root);return {...hand,side,gripPoint:new THREE.Vector3()};});
+        const tennisHands=[-1,1].map(side=>{const hand=createTennisHand(THREE,handMaterial,side);group.add(hand.root);return hand;});
+        const relaxedHands=[-1,1].map(side=>{const hand=createRelaxedHand(THREE,handMaterial,side);group.add(hand.root);return hand;});
+        const equipmentHands=Object.fromEntries([['rowing',rowingGrip],['clay',clayGrip]].map(([type,spec])=>[type,[-1,1].map(side=>{
+            const hand=createWrappedHand(THREE,handMaterial,side,spec);group.add(hand.root);return hand;
+        })]));
+        const forearmGeometries=[bones[2].geometry,bones[4].geometry];
+        const tennisForearmGeometry=new THREE.CylinderGeometry(.027,.052,1,20);
         const wristDetail=createWristDetail(THREE,$('wrist-detail'));wristDetail.setMode(wristMode);
         const propMaterial=new THREE.MeshStandardMaterial({color:0x9c8060,roughness:.8});
         const chairGroup=new THREE.Group();group.add(chairGroup);
@@ -218,13 +236,15 @@ async function initThree() {
         const back=new THREE.Mesh(new THREE.BoxGeometry(.67,.49,.055),propMaterial);back.position.set(0,1.03,-.23);chairGroup.add(back);
         for(const x of [-.27,.27])for(const z of [-.18,.32]){const leg=new THREE.Mesh(new THREE.CylinderGeometry(.028,.028,.59,10),propMaterial);leg.position.set(x,.32,z);chairGroup.add(leg);}
         const sculls=[-1,1].map(side=>{
-            const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.018,.025,1,12),propMaterial);group.add(shaft);
+            const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,1,12),propMaterial);group.add(shaft);
+            const handle=new THREE.Mesh(new THREE.CylinderGeometry(rowingGrip.radius,rowingGrip.radius,.15,16),propMaterial);group.add(handle);
             const blade=new THREE.Mesh(new THREE.SphereGeometry(1,24,12),new THREE.MeshStandardMaterial({color:side<0?0xc2d8e1:0xe7d9b7,roughness:.6}));blade.scale.set(.23,.055,.12);group.add(blade);
-            return {side,shaft,blade,end:new THREE.Vector3()};
+            return {side,shaft,handle,blade,end:new THREE.Vector3()};
         });
         const hull=new THREE.Mesh(new THREE.SphereGeometry(1,32,16),new THREE.MeshStandardMaterial({color:0x9cb5ae,roughness:.8}));hull.scale.set(1.05,.08,.21);hull.position.set(-.2,.52,0);group.add(hull);
         const racket=new THREE.Group();group.add(racket);
-        const grip=new THREE.Mesh(new THREE.CylinderGeometry(.026,.026,.28,12),propMaterial);grip.position.y=.14;racket.add(grip);
+        const grip=new THREE.Mesh(new THREE.CylinderGeometry(tennisGrip.radius,tennisGrip.radius,.28,12),propMaterial);grip.position.y=.14;racket.add(grip);
+        const butt=new THREE.Mesh(new THREE.CylinderGeometry(.028,.028,.014,12),propMaterial);butt.position.y=.007;racket.add(butt);
         const rim=new THREE.Mesh(new THREE.TorusGeometry(.18,.014,8,36),mat);rim.scale.y=1.3;rim.position.y=.5;racket.add(rim);
         const strings=new THREE.Mesh(new THREE.CircleGeometry(.165,24),new THREE.MeshBasicMaterial({color:0x7c8e70,transparent:true,opacity:.22,side:THREE.DoubleSide}));strings.scale.y=1.3;strings.position.y=.5;racket.add(strings);
         // Stylized exterior prop only; no working mechanism or aiming simulation.
@@ -232,19 +252,61 @@ async function initThree() {
         const gunWood=new THREE.MeshStandardMaterial({color:0x95633f,roughness:.75});
         const gunMetal=new THREE.MeshStandardMaterial({color:0x49545c,roughness:.48,metalness:.25});
         const gunPart=(geometry,material,x,y=0)=>{const mesh=new THREE.Mesh(geometry,material);mesh.position.set(x,y,0);shotgun.add(mesh);return mesh;};
-        const stock=gunPart(new THREE.BoxGeometry(.42,.16,.085),gunWood,-.27,-.025);stock.rotation.z=.1;
+        const stock=gunPart(new THREE.BoxGeometry(.30,.16,.085),gunWood,-.33,-.025);stock.rotation.z=.1;
+        const neckGrip=gunPart(new THREE.CylinderGeometry(clayGrip.radius,clayGrip.radius,.20,16),gunWood,clayGrip.rear[0],clayGrip.rear[1]);neckGrip.rotation.z=Math.PI/2;
         gunPart(new THREE.BoxGeometry(.035,.18,.1),gunMetal,-.49,-.045);
-        gunPart(new THREE.BoxGeometry(.25,.10,.085),gunMetal,.04);
-        gunPart(new THREE.BoxGeometry(.38,.08,.105),gunWood,.52,-.025);
+        gunPart(new THREE.BoxGeometry(.18,.10,.085),gunMetal,.09);
+        gunPart(new THREE.BoxGeometry(.10,.10,.065),gunMetal,.21,.025);
+        const foreend=gunPart(new THREE.CylinderGeometry(clayGrip.radius,clayGrip.radius,.38,16),gunWood,.52,clayGrip.rear[1]);foreend.rotation.z=Math.PI/2;
+        gunPart(new THREE.BoxGeometry(.18,.04,.05),gunWood,.62,-.012);
         for(const y of [.025,.073]){const barrel=gunPart(new THREE.CylinderGeometry(.023,.023,1.02,16),gunMetal,.76,y);barrel.rotation.z=Math.PI/2;}
+        let motionSample=null;
+        const feet=[0,1].map(()=>{const mesh=new THREE.Mesh(new THREE.SphereGeometry(1,20,14),mat);mesh.scale.set(.065,.045,.13);group.add(mesh);return mesh;});
+        const pelvis=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),mat);pelvis.scale.set(.18,.10,.12);group.add(pelvis);
+        const nose=new THREE.Mesh(new THREE.SphereGeometry(.035,12,10),headmat);nose.position.set(0,0,.135);head.add(nose);
+        const boatSeat=new THREE.Mesh(new THREE.BoxGeometry(.25,.055,.35),propMaterial);group.add(boatSeat);
+        const oarlocks=sculls.map(item=>{
+            const root=new THREE.Group();group.add(root);
+            const pivot=new THREE.Vector3(-.13,1.0,item.side*.64);
+            const ring=new THREE.Mesh(new THREE.TorusGeometry(.045,.012,8,16),propMaterial);ring.position.copy(pivot);root.add(ring);
+            const support=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,1,10),propMaterial);
+            const base=new THREE.Vector3(-.13,.54,item.side*.20),d=pivot.clone().sub(base);
+            support.position.copy(base).add(pivot).multiplyScalar(.5);support.scale.y=d.length();
+            support.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());root.add(support);
+            return {root,pivot};
+        });
         function updateProps(){
             const type=selectedPose().type;chairGroup.visible=type==='gentle';hull.visible=type==='rowing';racket.visible=type==='tennis';
+            boatSeat.visible=type==='rowing';boatSeat.position.set((coords[6].x+coords[7].x)/2,.56,0);
+            oarlocks.forEach(lock=>lock.root.visible=type==='rowing');
             shotgun.visible=type==='clay';
+            [2,4].forEach((index,i)=>{bones[index].geometry=motionSample?tennisForearmGeometry:forearmGeometries[i];});
             for(const hand of hands){
                 const w=hand.side<0?4:5,e=hand.side<0?2:3;
-                const showHands=type==='rowing'||type==='clay';
-                hand.root.visible=showHands;joints[w].scale.setScalar(showHands?.6:1);
+                const showHands=type==='rowing'||type==='clay'||type==='tennis';
+                const side=hand.side<0?0:1,tennis=type==='tennis'&&!!motionSample,equipped=!!motionSample?.equipmentHands;
+                hand.root.visible=showHands&&!tennis&&!equipped;joints[w].scale.setScalar((tennis||equipped)?.34:showHands?.6:1);
                 joints[w].material=showHands?wristMaterial:jointmat;
+                const gripFrame=motionSample?.tennisHands?.[side];
+                const meshSide=flipped?1-side:side;
+                tennisHands[meshSide].root.visible=tennis&&!!gripFrame;
+                relaxedHands[meshSide].root.visible=tennis&&!gripFrame;
+                for(const [sport,models]of Object.entries(equipmentHands))models[meshSide].root.visible=equipped&&type===sport;
+                if(equipped){
+                    const frame=motionSample.equipmentHands[side];
+                    placeTennisHand(THREE,equipmentHands[type][meshSide],frame);
+                    hand.gripPoint.fromArray(frame.center);
+                    continue;
+                }
+                if(tennis){
+                    // Reflections swap which anatomical hand is dominant.
+                    if(gripFrame)placeTennisHand(THREE,tennisHands[meshSide],gripFrame);
+                    else {
+                        orientHand(THREE,relaxedHands[meshSide],coords[w],coords[w].clone().sub(coords[e]));
+                        relaxedHands[meshSide].root.scale.z=flipped?-1:1;
+                    }
+                    continue;
+                }
                 if(!showHands)continue;
                 const direction=coords[w].clone().sub(coords[e]);
                 if(type==='rowing' && wristExamples[wristMode].keepGrip){
@@ -253,23 +315,40 @@ async function initThree() {
                 }
                 hand.gripPoint.copy(orientHand(THREE,hand,coords[w],direction));
             }
-            if(shotgun.visible){
+            if(shotgun.visible&&motionSample?.clayProp){
+                const prop=motionSample.clayProp;
+                shotgun.position.fromArray(prop.origin);
+                shotgun.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(...prop.x),new THREE.Vector3(...prop.y),new THREE.Vector3(...prop.z)));
+                shotgun.scale.set(1,1,prop.mirrored?-1:1);
+            }else if(shotgun.visible){
                 const rear=hands[flipped?0:1].gripPoint,front=hands[flipped?1:0].gripPoint;
                 const x=front.clone().sub(rear),length=x.length();x.normalize();
                 const up=Math.abs(x.y)>.95?new THREE.Vector3(0,0,1):new THREE.Vector3(0,1,0);
                 const z=new THREE.Vector3().crossVectors(x,up).normalize(),y=new THREE.Vector3().crossVectors(z,x).normalize();
                 shotgun.position.copy(rear);shotgun.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,z));
-                shotgun.scale.set(length/.52,1,1);
+                shotgun.scale.setScalar(1);
             }
             wristMaterial.color.set(wristMode==='aligned'?0xd8ecad:0xe6b878);
             for(const item of sculls){
-                item.shaft.visible=item.blade.visible=type==='rowing';
+                item.shaft.visible=item.handle.visible=item.blade.visible=type==='rowing';
                 if(type!=='rowing')continue;
+                const attachment=motionSample?.oars?.[item.side<0?0:1];
+                if(attachment){
+                    const start=new THREE.Vector3(...attachment.start);
+                    item.end.fromArray(attachment.end);
+                    item.shaft.position.copy(start).add(item.end).multiplyScalar(.5);
+                    item.shaft.scale.y=rowingGrip.oarLength;
+                    item.shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(...attachment.axis));
+                    item.handle.position.fromArray(attachment.hand.center);
+                    item.handle.quaternion.copy(item.shaft.quaternion);
+                    item.blade.position.copy(item.end);
+                    continue;
+                }
                 const hand=hands[item.side<0?0:1].gripPoint;
                 const handleStart=hand.clone().add(new THREE.Vector3(0,0,-item.side*.09));
-                // These visual oars are illustrative props, not tracked blade positions.
-                const lift=current==='rowing-recovery'?.2:current==='rowing-finish'?.06:-.2;
-                item.end.copy(hand).add(new THREE.Vector3(-.22,lift,item.side*1.48));
+                // Fixed oar length and pivot; this is a geometric approximation, not a measured blade track.
+                const lock=oarlocks[item.side<0?0:1].pivot;
+                item.end.copy(handleStart).addScaledVector(lock.clone().sub(handleStart).normalize(),2.25);
                 const d=item.end.clone().sub(handleStart);
                 item.shaft.position.copy(handleStart).add(item.end).multiplyScalar(.5);
                 item.shaft.scale.y=d.length();
@@ -277,7 +356,12 @@ async function initThree() {
                 item.blade.position.copy(item.end);
             }
             const wrist=flipped?4:5,elbow=flipped?2:3;
-            racket.position.copy(coords[wrist]);racket.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),coords[wrist].clone().sub(coords[elbow]).normalize());
+            if(type==='tennis'&&motionSample){
+                racket.position.fromArray(motionSample.racketPosition);
+                racket.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(...motionSample.racketDirection));
+            }else{
+                racket.position.copy(coords[wrist]);racket.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),coords[wrist].clone().sub(coords[elbow]).normalize());
+            }
         }
         const savedViews=new Map();
         let rotation=0;
@@ -297,18 +381,39 @@ async function initThree() {
             const pts=values.map(v=>v?new THREE.Vector3(...v):null);liveJoints.forEach((m,i)=>{m.visible=!!pts[i];if(pts[i])m.position.copy(pts[i]);});
             links.forEach(([a,b],i)=>{const m=liveBones[i];m.visible=!!pts[a]&&!!pts[b];if(!m.visible)return;const d=pts[b].clone().sub(pts[a]);m.position.copy(pts[a]).add(pts[b]).multiplyScalar(.5);m.scale.y=d.length();m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());m.material.color.set(adjust.includes(landmarkIds[a])||adjust.includes(landmarkIds[b])?0x854316:0x243950);});
         } }; setModelTheme(); new ResizeObserver(() => { const { width, height } = host.getBoundingClientRect(); if (!width || !height) return; renderer.setSize(width, height); camera.aspect = width / height; camera.position.z = Math.max(6.8, 4.6 / camera.aspect); camera.updateProjectionMatrix(); }).observe(host);
-        renderer.setAnimationLoop(() => { if (document.hidden || host.hidden) return; neutralCoords.forEach((v,i)=>v.lerp(new THREE.Vector3(...target[i]),.08));
+        renderer.setAnimationLoop(() => { if (document.hidden || host.hidden) return;
+            motionSample=motionPlayer.sample();
+            if(motionSample)neutralCoords.forEach((v,i)=>v.fromArray(motionSample.coords[i]));
+            else neutralCoords.forEach((v,i)=>v.lerp(new THREE.Vector3(...target[i]),.08));
             coords.forEach((v,i)=>v.copy(neutralCoords[i]));
             if(selectedPose().type==='rowing'){
                 const example=wristExamples[wristMode];
                 for(const i of [4,5])coords[i].y+=example.wristLift;
                 for(const i of [2,3])coords[i].y+=example.elbowLift;
             }
-            coords.forEach((v,i)=>joints[i].position.copy(v)); links.forEach(([a, b], i) => { const d = new THREE.Vector3().subVectors(coords[b], coords[a]); bones[i].position.copy(coords[a]).add(coords[b]).multiplyScalar(.5); bones[i].scale.y = d.length(); bones[i].quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()) }); const shoulder = coords[0].clone().add(coords[1]).multiplyScalar(.5); const hip=coords[6].clone().add(coords[7]).multiplyScalar(.5);const axis=shoulder.clone().sub(hip).normalize();head.position.copy(shoulder).addScaledVector(axis,.31);neck.position.copy(shoulder).addScaledVector(axis,.12);head.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),axis);neck.quaternion.copy(head.quaternion); torso.position.copy(shoulder).add(coords[6].clone().add(coords[7]).multiplyScalar(.5)).multiplyScalar(.5); torso.rotation.z = -Math.atan2((coords[0].x+coords[1].x-coords[6].x-coords[7].x)/2,(coords[0].y+coords[1].y-coords[6].y-coords[7].y)/2); group.rotation.y += (rotation - group.rotation.y) * .06;updateProps();
-            const boundPoints=[...coords,head.position.clone().add(new THREE.Vector3(0,.2,0))];
+            coords.forEach((v,i)=>joints[i].position.copy(v)); links.forEach(([a, b], i) => { const d = new THREE.Vector3().subVectors(coords[b], coords[a]); bones[i].position.copy(coords[a]).add(coords[b]).multiplyScalar(.5); bones[i].scale.y = d.length(); bones[i].quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()) }); const shoulder = coords[0].clone().add(coords[1]).multiplyScalar(.5); const hip=coords[6].clone().add(coords[7]).multiplyScalar(.5);const axis=shoulder.clone().sub(hip).normalize();head.position.copy(shoulder).addScaledVector(axis,.31);neck.position.copy(shoulder).addScaledVector(axis,.12);head.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),axis);neck.quaternion.copy(head.quaternion); torso.position.copy(shoulder).add(coords[6].clone().add(coords[7]).multiplyScalar(.5)).multiplyScalar(.5); const lateral=coords[1].clone().sub(coords[0]).normalize();
+            const forward=new THREE.Vector3().crossVectors(lateral,axis).normalize();
+            lateral.crossVectors(axis,forward).normalize();
+            const bodyRotation=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(lateral,axis,forward));
+            torso.quaternion.copy(bodyRotation);head.quaternion.copy(bodyRotation);neck.quaternion.copy(bodyRotation);
+            pelvis.visible=!!motionSample;pelvis.position.copy(hip);
+            const hipLateral=coords[7].clone().sub(coords[6]).normalize(),hipForward=new THREE.Vector3().crossVectors(hipLateral,new THREE.Vector3(0,1,0)).normalize();
+            pelvis.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(hipLateral,new THREE.Vector3(0,1,0),hipForward));
+            feet.forEach((foot,i)=>{foot.visible=!!motionSample;foot.position.copy(coords[10+i]).addScaledVector(hipForward,.06);foot.position.y-=.03;foot.quaternion.copy(pelvis.quaternion);});
+            group.rotation.y += (rotation - group.rotation.y) * .06;updateProps();
+            let boundPoints=[...coords,head.position.clone().add(new THREE.Vector3(0,.2,0))];
             if(shotgun.visible)for(const x of [-.52,1.30])for(const y of [-.15,.13])boundPoints.push(new THREE.Vector3(x,y,0).multiply(shotgun.scale).applyQuaternion(shotgun.quaternion).add(shotgun.position));
             if(racket.visible)boundPoints.push(new THREE.Vector3(0,.75,0).applyQuaternion(racket.quaternion).add(racket.position));
             if(hull.visible)for(const item of sculls)for(const sign of [-1,1])boundPoints.push(item.end.clone().add(new THREE.Vector3(.24*sign,.06*sign,.13*sign)));
+            const detailHands=motionSample?.tennisHands||motionSample?.equipmentHands;
+            if(gripDetail&&detailHands){
+                boundPoints=[];
+                detailHands.forEach((hand,side)=>{
+                    if(!hand)return;
+                    const center=new THREE.Vector3(...hand.center),axis=new THREE.Vector3(...hand.y);
+                    boundPoints.push(coords[4+side],coords[4+side].clone().lerp(coords[2+side],.45),center.clone().addScaledVector(axis,.09),center.clone().addScaledVector(axis,-.09));
+                });
+            }
             const minY=Math.min(...boundPoints.map(v=>v.y))-.12,maxY=Math.max(...boundPoints.map(v=>v.y))+.12;
             const projected=boundPoints.map(v=>v.x*Math.cos(group.rotation.y)+v.z*Math.sin(group.rotation.y));
             const minX=Math.min(...projected)-.18,maxX=Math.max(...projected)+.18;

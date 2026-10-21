@@ -163,6 +163,26 @@ const zh = {
   'Close to reference': '接近参考动作', 'Some adjustments': '可以稍作调整', 'Different from reference': '与参考动作差异较大',
 };
 
+Object.assign(zh, {
+  "Clay shooting · movement demonstrations": "飞碟 · 动作演示",
+  "Sculling · three stroke studies": "赛艇 · 三种划桨动作",
+  "Tennis · forehand & backhand": "网球 · 正手与反手",
+  "Explore the complete movement, ready hold, raise to cheek and lowering as separate 3D demonstrations.": "可分别查看连续完整动作、持枪准备、举枪贴腮和下枪的三维演示。",
+  "Explore arms-only, half stroke and full stroke as separate 3D demonstrations.": "可分别查看出手划、1/2 划和全桨划的三维演示。",
+  "Forehand and backhand each include backswing, racket drop, swing and a complete stroke. Select any movement to play its 3D demonstration.": "正手、反手各包含引拍、降拍、挥拍与完整挥拍。选择任一动作即可播放三维演示。",
+  "Forehand · four views of one stroke": "正手 · 分解与完整挥拍",
+  "Backhand · four views of one stroke": "反手 · 分解与完整挥拍",
+  "FOREHAND": "正手", "TWO-HANDED BACKHAND": "双手反手",
+  "MOVEMENT DEMONSTRATION": "动作演示", "3D demonstration": "三维演示",
+  "3D movement demonstration": "3D 动作演示", "3D movement playback": "动作播放",
+  "Grip detail": "握拍细节",
+  "Hand detail": "手部细节",
+  "Play": "播放", "Pause": "暂停", "Restart": "重新播放", "Speed": "速度",
+  "Playback speed": "播放速度", "Movement timeline": "动作时间轴",
+  "Play movement": "播放动作", "Pause movement": "暂停动作",
+  "Backswing": "引拍", "Racket drop": "降拍", "Swing & follow-through": "挥拍与随挥"
+});
+
 export function t(value) {
   if (language !== 'zh' || typeof value !== 'string') return value;
   const exact = zh[value.replace(/\s+/g, ' ').trim()];
@@ -234,7 +254,7 @@ const poseZh = {
 
 export function registerPoseTranslations(poses) {
   for (const pose of poses) {
-    const localized = poseZh[pose.id];
+    const localized = pose.zh || poseZh[pose.id];
     if (!localized) continue;
     zh[pose.name] = localized[0];
     zh[pose.description] = localized[1];
