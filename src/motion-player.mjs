@@ -47,6 +47,7 @@ export function createMotionPlayer() {
    seek.min='0';seek.max=String(clock.read().duration);seek.value='0';
    updateDisplay();
   },
+  pause(){clock.pause();updateDisplay();},
   mirror(value){flipped=value;},
   sample(){return clip?sampleMotion(clip.id,clock.read().elapsed,flipped):null;},
  };
