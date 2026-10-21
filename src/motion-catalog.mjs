@@ -231,8 +231,8 @@ export const motionClips = [
   {
     "id": "clay-lower",
     "type": "clay",
-    "name": "Lower gun",
-    "zhName": "下枪",
+    "name": "Complete movement · second take",
+    "zhName": "第二次完整动作",
     "sourceFile": "sheji_04_010.mp4",
     "sourceStart": 1,
     "sourceEnd": 13,

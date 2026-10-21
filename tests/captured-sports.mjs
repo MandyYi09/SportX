@@ -81,10 +81,20 @@ for(const id of Object.keys(captureWindows).filter(id=>!id.startsWith('rowing'))
  assert.deepEqual(sampleMotion(id,-1).coords,initial.coords);assert.deepEqual(sampleMotion(id,duration+1).coords,sampleMotion(id,duration).coords);
  console.log(id,JSON.stringify({duration,maxStepAt120Hz:maxStep,source:initial.source}));
 }
-assert.equal(capturedWindow('clay-lower').start,1);
-near(capturedDuration('clay-lower'),12);
+assert.equal(capturedWindow('clay-lower').start,2.05);
+near(capturedDuration('clay-lower'),11.6);
 assert.equal(captureReferences['clay-lower'].cameraMountedAt,5);
-assert.equal(sampleMotion('clay-lower',3.49).gazeReferenceActive,false);
-assert.equal(sampleMotion('clay-lower',3.5).gazeReferenceActive,true);
-assert.ok(distance(sampleMotion('clay-lower',3.5).coords[4],sampleMotion('clay-lower',8).coords[4])>.01,'Full action must not be replaced by a frozen hold');
-console.log('PASS: original BVH reconstruction, captured tennis/clay proportions, mirroring, rigid equipment, independent source recordings and trimmed study 4.');
+assert.equal(sampleMotion('clay-lower',0).gazeReferenceActive,false);
+assert.ok(sampleMotion('clay-lower',2.5).gazeReferenceActive);
+assert.ok(distance(sampleMotion('clay-lower',0).coords[5],sampleMotion('clay-lower',2.5).coords[5])>.35,'Second complete action includes preparation and raising');
+assert.ok(distance(sampleMotion('clay-lower',2.5).coords[5],sampleMotion('clay-lower',11.6).coords[5])>.35,'Second complete action includes lowering');
+for(const side of ['forehand','backhand']){
+ const full=`tennis-${side}-full`,fullWindow=capturedWindow(full),slices=['backswing','drop','swing'].map(phase=>`tennis-${side}-${phase}`);
+ near(capturedWindow(slices[0]).start,fullWindow.start);near(capturedWindow(slices[2]).end,fullWindow.end);
+ for(let i=1;i<slices.length;i++)near(capturedWindow(slices[i-1]).end,capturedWindow(slices[i]).start);
+ for(const id of slices)for(let t=0;t<capturedDuration(id);t+=.1){
+  const a=sampleMotion(id,t),b=sampleMotion(full,capturedWindow(id).start-fullWindow.start+t);
+  a.coords.forEach((point,i)=>near(distance(point,b.coords[i]),0));
+ }
+}
+console.log('PASS: original BVH reconstruction, captured proportions, mirroring, equipment, preserved stroke breakdowns and second complete shooting action.');

@@ -89,7 +89,7 @@ for(const clip of motionClips){
  nearFrame(sampleMotion(clip.id,-1).coords,sampleMotion(clip.id,0).coords);
  nearFrame(sampleMotion(clip.id,duration+10).coords,sampleMotion(clip.id,duration).coords);
 }
-assert.equal(practicePoses.find(p=>p.id==='clay-lower').zh[0],'下枪');
+assert.equal(practicePoses.find(p=>p.id==='clay-lower').zh[0],'第二次完整动作');
 assert.equal(practicePoses.find(p=>p.id==='rowing-half').zh[0],'1/2 划');
 assert.equal(sampleMotion('reach',0),null);
 let now=0;
