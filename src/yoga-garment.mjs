@@ -1,5 +1,5 @@
 // One connected surface from the neckline through a rounded hip bend to both hems.
-export function createYogaGarment(THREE,material){
+export function createYogaGarment(THREE,material,{female=false}={}){
  const segments=48,legRows=20,bodyRows=64,vertices=[],indices=[],legs=[[],[]],seam=new Map();
  for(let side=0;side<2;side++)for(let row=0;row<=legRows;row++){
   legs[side][row]=[];
@@ -47,11 +47,13 @@ export function createYogaGarment(THREE,material){
     if(t<.30){const u=t/.30;center=waist.clone().multiplyScalar((1-u)**2).addScaledVector(hip,2*u*(1-u)).addScaledVector(bendEnd,u*u);tangent=hip.clone().sub(waist).multiplyScalar(1-u).addScaledVector(bendEnd.clone().sub(hip),u).normalize();}
     else {const u=(t-.30)/.70;center=bendEnd.clone().lerp(top,u);tangent=axis;}
     const bx=lateral.clone().addScaledVector(tangent,-lateral.dot(tangent)).normalize(),bz=new THREE.Vector3().crossVectors(bx,tangent).normalize(),r=radius(t);
-    point.copy(center).addScaledVector(bx,c*r[0]*width).addScaledVector(bz,s*r[1]);
+    const contour=female?.94-.10*Math.exp(-(((t-.48)/.20)**2)):1;
+    const chest=female&&s>0?.021*Math.exp(-(((t-.78)/.14)**2))*Math.exp(-(((Math.abs(c*r[0])-.07)/.065)**2))*s:0;
+    point.copy(center).addScaledVector(bx,c*r[0]*width*contour).addScaledVector(bz,s*r[1]*(female?.95:1)+chest);
    }else{
     const saddle=Math.abs(s)**12;
     const start=waist.clone().addScaledVector(pelvisX,inner?0:.18*width*c).addScaledVector(pelvisZ,.12*s).addScaledVector(down,inner?.07*(1-saddle):0);
-    const t=row/legRows,along=.32+t*.23,r=.087-t*.006;
+    const t=row/legRows,along=.32+t*.23,r=(female?.095:.087)-t*(female?.014:.006);
     const end=coords[6+side].clone().lerp(coords[8+side],along).addScaledVector(frames[side].x,c*r).addScaledVector(frames[side].z,s*(r+.008));
     point.copy(start).lerp(end,THREE.MathUtils.smoothstep(t,0,.35));
    }

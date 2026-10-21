@@ -71,21 +71,33 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
  const pelvis=surface([[0,.002,.002],[.12,.119,.079],[.35,.174,.113],[.64,.181,.12],[.90,.162,.106],[1,.153,.10]],fabric);
  const neck=surface([[0,.065,.059],[.25,.059,.055],[.75,.048,.046],[1,.059,.052]],skin);
  const head=new THREE.Group();root.add(head);
- const skull=surface([[0,.025,.035],[.06,.052,.063],[.19,.078,.079],[.40,.092,.09],[.64,.096,.093],[.83,.085,.083],[.96,.049,.052],[1,.001,.001]],skin,head);
+ const skull=surface(female?[[0,.022,.032],[.08,.046,.053],[.21,.064,.068],[.42,.080,.081],[.66,.088,.087],[.84,.080,.079],[.96,.045,.050],[1,.001,.001]]:[[0,.025,.035],[.06,.052,.063],[.19,.078,.079],[.40,.092,.09],[.64,.096,.093],[.83,.085,.083],[.96,.049,.052],[1,.001,.001]],skin,head);skull.name='athlete-face';
+ if(female){
+  // Sculpt a small continuous bridge/tip into the face, rather than adding a nose sphere.
+  const p=skull.geometry.attributes.position;
+  for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i);if(z>0){const nose=Math.exp(-((x/.018)**2))*(.013*Math.exp(-(((y-.55)/.17)**2))+.008*Math.exp(-(((y-.45)/.065)**2)));p.setZ(i,z+nose*Math.min(1,z/.05));}}
+  p.needsUpdate=true;skull.geometry.computeVertexNormals();
+ }
  skull.position.y=-.115;skull.scale.y=.27;
  const eyes=[],eyeWhite=new THREE.MeshStandardMaterial({color:0xd8d2c7,roughness:.9});
  for(const side of [-1,1]){
-  volume(head,skin,[side*.094,.015,0],[.018,.029,.015]);
-  volume(head,earInset,[side*.102,.015,.009],[.007,.017,.005]);
+  volume(head,skin,[side*(female?.086:.094),.015,0],[female?.014:.018,female?.025:.029,.014]);
+  volume(head,earInset,[side*(female?.093:.102),.015,.009],[female?.005:.007,.015,.005]);
   const neutral=volume(head,face,[side*.037,.035,.085],[.013,.005,.004]);
   const white=volume(head,eyeWhite,[side*.037,.035,.086],[.011,.0045,.003]);white.visible=false;
   const pupil=volume(head,face,[side*.037,.035,.089],[.004,.0025,.0018]);pupil.visible=false;
   eyes.push({side,neutral,white,pupil});
-  const brow=volume(head,hair,[side*.037,.054,.083],[.019,.003,.005]);brow.rotation.z=-side*.08;
+  const brow=volume(head,hair,[side*.037,.054,.083],[.019,.003,.005]);brow.rotation.z=-side*.08;if(female)brow.scale.set(.015,.0023,.004);
  }
  // Keep the face smooth: separate cheek and nose spheres read as attached knobs.
- volume(head,face,[0,-.054,.079],[.023,.0025,.003]);
- const hairCap=surface([[0,.092,.087],[.23,.096,.093],[.54,.083,.084],[.83,.050,.055],[1,.001,.001]],hair,head);hairCap.position.y=.068;hairCap.scale.y=.094;
+ const mouth=volume(head,face,[0,-.054,female?.072:.079],[female?.019:.023,.0025,.003]);
+ if(female)mouth.material=new THREE.MeshStandardMaterial({color:0x8f6961,roughness:.96});
+ const hairCap=surface([[0,.092,.087],[.23,.096,.093],[.54,.083,.084],[.83,.050,.055],[1,.001,.001]],hair,head);hairCap.position.y=.068;hairCap.scale.y=.094;if(female){
+  hairCap.scale.x=.94;
+  const p=hairCap.geometry.attributes.position;
+  for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),edge=-.90*Math.max(0,-z/.09)-.52*Math.abs(x/.096)+.10*Math.max(0,z/.09)*(x>0?1:0);p.setY(i,y+(1-y)**4*edge);}
+  p.needsUpdate=true;hairCap.geometry.computeVertexNormals();
+ }
  const glasses=new THREE.Group();head.add(glasses);glasses.visible=false;glasses.name='rowing-sunglasses';
  const lensMaterial=new THREE.MeshStandardMaterial({color:0x123c52,metalness:.65,roughness:.2});
  const glassesFrame=new THREE.MeshStandardMaterial({color:0x151d23,roughness:.5});
@@ -139,14 +151,15 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
   return Math.min(.995,.74+.12*(1-x)+.19*Math.exp(-(((x-.55)/.20)**2))+back);
  }),rowingRed);rowingTank.visible=false;rowingTank.name='rowing-singlet';
  const femaleTank=mesh(rowingTank.geometry.clone(),femaleTop);femaleTank.visible=false;femaleTank.name='female-sport-top';
- const yogaGarment=createYogaGarment(THREE,yogaFabric);root.add(yogaGarment.root);
+ const yogaGarment=createYogaGarment(THREE,yogaFabric,{female});root.add(yogaGarment.root);
  const yogaTank=mesh(profileGeometry(rowingTorsoProfile,48,64,a=>{
   const x=Math.abs(Math.cos(a)),back=Math.sin(a)<0?.035:0;
   return Math.min(.985,.76+.10*(1-x)+.19*Math.exp(-(((x-.62)/.25)**2))+back);
  },female?.29:0),yogaFabric);yogaTank.visible=false;yogaTank.name='yoga-tank';
  const yogaSkinTorso=profileGeometry([[0,.001,.001],[.60,.001,.001],[.73,.18,.115],[.80,.202,.124],[.91,.199,.103],[.97,.139,.073],[1,.061,.055]]);
  const regularNeck=neck.geometry;
- const yogaNeck=profileGeometry([[0,.116,.072],[.18,.099,.065],[.48,.062,.054],[.78,.053,.050],[1,.059,.053]]);
+ const yogaNeck=profileGeometry(female?[[0,.098,.062],[.18,.084,.057],[.48,.053,.047],[.78,.044,.043],[1,.049,.047]]:[[0,.116,.072],[.18,.099,.065],[.48,.062,.054],[.78,.053,.050],[1,.059,.053]]);
+ if(female)regularNeck.scale(.84,1,.90);
  neck.name='athlete-neck';head.name='athlete-head';
  const rowingArm=profileGeometry([[0,.047,.048],[.12,.062,.061],[.30,.062,.056],[.57,.052,.051],[.82,.040,.040],[1,.033,.035]]);
  const rowingForearm=profileGeometry([[0,.033,.035],[.18,.044,.042],[.40,.042,.036],[.68,.032,.029],[1,.024,.023]]);
@@ -250,7 +263,8 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
  function trouserRadius(t,shin=false){
   const keys=shin?[[0,.037,.039],[.18,.041,.044],[.40,.043,.046],[.68,.034,.037],[1,.025,.027]]:[[0,.067,.070],[.28,.067,.069],[.55,.057,.059],[.82,.044,.046],[1,.037,.039]];
   let i=0;while(i<keys.length-2&&t>keys[i+1][0])i++;const a=keys[i],b=keys[i+1],u=Math.max(0,Math.min(1,(t-a[0])/(b[0]-a[0]))),s=u*u*(3-2*u);
-  return [a[1]+(b[1]-a[1])*s,a[2]+(b[2]-a[2])*s];
+  const fullness=female?(shin?.98:1.15-.05*t):1;
+  return [(a[1]+(b[1]-a[1])*s)*fullness,(a[2]+(b[2]-a[2])*s)*fullness];
  }
  function updateTrousers(coords,hip,axis,lateral,forward,width){
   const fullLegs=female&&!shooting&&!rowing&&!tennis;
@@ -268,8 +282,8 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
    const c=Math.cos(a),s=Math.sin(a),frame=frames[side];
    // The front fly stays outside the shirt hem; the seam dips only at the groin.
    const saddle=(tennis||yoga)&&!female?Math.abs(s)**12:Math.abs(s);
-   const waistband=female?.025:.075;
-   const waist=hip.clone().addScaledVector(axis,inner?-.105+(.105+waistband)*saddle:waistband).addScaledVector(lateral,inner?0:(female?.144:.166)*width*c).addScaledVector(forward,(female?.100:tennis?.115:.105)*s);
+   const waistband=female?.055:.075;
+   const waist=hip.clone().addScaledVector(axis,inner?-.105+(.105+waistband)*saddle:waistband).addScaledVector(lateral,inner?0:(female?.152:.166)*width*c).addScaledVector(forward,(female?.100:tennis?.115:.105)*s);
    if(yoga&&inner){
     // At a folded hip, the crotch follows the thighs rather than jutting behind the back.
     const thighUp=coords[6+side].clone().sub(frame.knee).normalize();
@@ -277,10 +291,13 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
    }
    const t=row/stations;
    if(t<=.16){
-    const blend=t/.16,radius=fullLegs?trouserRadius(.27):yoga?[.090,.098]:rowing||tennis?[.077,.080]:trouserRadius(.27),ring=coords[6+side].clone().lerp(frame.knee,.27).addScaledVector(frame.thigh.x,c*radius[0]).addScaledVector(frame.thigh.z,s*radius[1]);
-    point.copy(waist).lerp(ring,blend*blend*(3-2*blend));
+    const blend=t/.16,radius=fullLegs?trouserRadius(.27):yoga?[.090,.098]:rowing||tennis?(female?[.088,.091]:[.077,.080]):trouserRadius(.27),ring=coords[6+side].clone().lerp(frame.knee,.27).addScaledVector(frame.thigh.x,c*radius[0]).addScaledVector(frame.thigh.z,s*radius[1]);
+    if(female){
+     const control=waist.clone().lerp(ring,.5).addScaledVector(lateral,(side===0?-1:1)*Math.max(0,(side===0?-1:1)*c)*.025).addScaledVector(forward,s*.014);
+     const u=blend*blend*(3-2*blend);point.copy(waist).multiplyScalar((1-u)**2).addScaledVector(control,2*u*(1-u)).addScaledVector(ring,u*u);
+    }else point.copy(waist).lerp(ring,blend*blend*(3-2*blend));
    }else if((rowing||tennis||yoga)&&!fullLegs){
-    const along=.27+(t-.16)/.84*(yoga?.28:tennis?.39:.30),rx=(yoga?.090:.077)-(t-.16)/.84*(yoga?.009:tennis?.004:.007),rz=rx+(yoga?.008:.003);
+    const along=.27+(t-.16)/.84*(yoga?.28:tennis?.39:.30),rx=(yoga?.090:female?.088:.077)-(t-.16)/.84*(yoga?.009:tennis?.004:.007),rz=rx+(yoga?.008:.003);
     point.copy(coords[6+side]).lerp(frame.knee,along).addScaledVector(frame.thigh.x,c*rx).addScaledVector(frame.thigh.z,s*rz);
    }else if(t<=.52){
     const along=.27+(t-.16)/.36*.73,radius=trouserRadius(along);
@@ -300,10 +317,17 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
   // Change the surface silhouette only; both variants use identical joint anchors.
   for(const g of new Set([regularTorso,captureTorso,rowingTorso,tennisTorso,rowingTank.geometry,yogaTank.geometry,femaleTank.geometry])){
    const p=g.attributes.position;
-   for(let i=0;i<p.count;i++){const y=p.getY(i),waist=Math.exp(-(((y-.35)/.22)**2));p.setX(i,p.getX(i)*(.94-.09*waist));p.setZ(i,p.getZ(i)*(.98+.04*Math.exp(-(((y-.72)/.15)**2))));}
+   for(let i=0;i<p.count;i++){
+    const x=p.getX(i),y=p.getY(i),z=p.getZ(i),waist=Math.exp(-(((y-.35)/.21)**2));
+    p.setX(i,x*(.93-.12*waist+.035*Math.exp(-((y/.18)**2))));
+    const chest=z>0?.027*Math.exp(-(((y-.69)/.16)**2))*Math.exp(-(((Math.abs(x)-.072)/.065)**2))*Math.min(1,z/.075):0;
+    p.setZ(i,z*(.94-.045*waist)+chest);
+   }
    p.needsUpdate=true;g.computeVertexNormals();
   }
-  for(const g of new Set([regularArm,regularForearm,yogaArm,yogaForearm,rowingArm,rowingForearm,regularThigh,regularCalf,rowingThigh,rowingCalf,yogaThigh,mobilitySleeve]))g.scale(.88,1,.88);
+  for(const g of new Set([regularArm,regularForearm,yogaArm,yogaForearm,rowingArm,rowingForearm,mobilitySleeve]))g.scale(.86,1,.86);
+  for(const g of new Set([regularThigh,rowingThigh,yogaThigh]))g.scale(.99,1,1.02);
+  for(const g of new Set([regularCalf,rowingCalf]))g.scale(.91,1,.93);
   rowingShortMaterial.vertexColors=false;rowingShortMaterial.color.set(0x173d45);
  }
  let shooting=false,rowing=false,tennis=false,yoga=false,mobility=false,bentYoga=false,currentSport=null,currentPose=null;
@@ -334,7 +358,7 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
    leggings.visible=!shooting&&!rowing&&!tennis;yogaShorts.visible=false;
    yogaTank.visible=yoga&&!bentYoga;
   }else looseHair.visible=false;
-  eyes.forEach(eye=>{eye.neutral.visible=!shooting&&!rowing;eye.white.visible=eye.pupil.visible=shooting;});
+  eyes.forEach(eye=>{eye.neutral.visible=!female&&!shooting&&!rowing;eye.white.visible=eye.pupil.visible=shooting||female;});
   for(const part of limbs){
    part.upper.visible=true;part.upper.geometry=yoga?yogaArm:rowing||tennis?rowingArm:regularArm;
    part.sleeve.visible=!rowing&&!yoga;part.shoulder.visible=rowing||tennis||yoga;part.shoulder.material=yoga?yogaSkin:tennis?tennisNavy:rowingSkin;part.shoulder.scale.set(tennis?.067:.064,tennis?.052:.056,tennis?.064:.062);part.sleeve.geometry=tennis?tennisSleeve:regularSleeve;part.sleeve.material=tennis?tennisNavy:shooting?shootingBlue:body;
