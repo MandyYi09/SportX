@@ -112,12 +112,12 @@ function selectPose(id, keepSide=false) {
  $('pose-name').textContent=p.name; $('pose-description').textContent=p.description;
  $('pose-level').textContent=p.level || 'Easy';
  $('angle-label').textContent=p.demoOnly ? '↔ Drag to rotate · scroll to zoom' : isUpperPose(id) ? '↔ Front camera · upper body' : isSidePose(id) ? '↔ Side-on camera · full body' : '↔ Face your camera';
- $('camera-setup').textContent=p.demoOnly ? 'Place your camera where your body and hands are visible. Live preview only; no technique scoring.' : 'Camera setup: '+framing(id);
+ $('camera-setup').textContent=p.demoOnly ? 'Place your camera where your body and hands are visible.' : 'Camera setup: '+framing(id);
  $('stage-note').hidden=!guideUnavailable || !!stream;
- $('reference-label').textContent=p.motion ? 'Expert demonstration' : p.demoOnly ? 'Illustrative 3D movement study' : isUpperPose(id) ? '3D reference · upper-body estimate' : '3D reference · 2D pose estimate';
+ $('reference-label').textContent=p.motion ? 'Expert demonstration' : p.demoOnly ? 'Illustrative 3D movement study' : isUpperPose(id) ? '3D reference · upper body' : '3D pose reference';
  $('cues').innerHTML=p.cues.map((c,i)=>`<div class="cue"><span>${i+1}</span>${c}</div>`).join('');
  $('wrist-study').hidden=!p.wristStudy;
- $('cue-heading').textContent=p.demoOnly ? 'Explore this step' : 'Move comfortably';
+ $('cue-heading').textContent=p.demoOnly ? 'Explore this step' : 'Movement cues';
  const mode=practiceModes[p.type]; $('practice-note').hidden=!mode?.note;
  $('practice-note-text').textContent=mode?.note || ''; $('practice-source').textContent=mode?.sourceLabel || ''; $('practice-source').hidden=!mode?.source; if(mode?.source)$('practice-source').href=mode.source;
  const sequence=sequenceFor(id); $('sequence').hidden=!sequence.length;
@@ -125,16 +125,16 @@ function selectPose(id, keepSide=false) {
  $('sequence-steps').replaceChildren();
  sequence.forEach((step,i)=>{const b=document.createElement('button'); b.textContent=`${i+1}. ${step.name}`;b.setAttribute('aria-pressed',String(step.id===id));b.onclick=()=>{selectPose(step.id,true);$('sequence-steps').children[i].focus({preventScroll:true});};$('sequence-steps').append(b);});
  $('timer-panel').hidden=$('timer-note').hidden=!!p.demoOnly;
- $('timer-label').textContent=p.type==='gentle' ? 'MOVE AT YOUR PACE' : 'COMFORTABLE HOLD';
- $('timer-note').textContent=p.type==='gentle' ? 'An optional timer. Move slowly and rest whenever you need to.' : 'A manual timer. Release sooner if you need to.';
+ $('timer-label').textContent=p.type==='gentle' ? 'MOVEMENT TIMER' : 'HOLD TIMER';
+ $('timer-note').textContent='Start or pause the timer.';
  $('camera').disabled=starting; setCameraButton(stream ? 'Stop camera' : '▣ Enable camera');
  $('camera-title').textContent=p.demoOnly ? 'Practice with a live preview.' : 'Your space. Your pace.';
- $('camera-sub').textContent=p.demoOnly ? stream ? 'Your camera is beside the 3D guide. No technique scoring.' : 'Enable camera to see yourself beside the 3D guide. No technique scoring.' : stream ? framing(id) : 'Enable your camera for an approximate body-shape comparison.';
+ $('camera-sub').textContent=p.demoOnly ? stream ? 'Your camera is beside the 3D guide.' : 'Enable camera to see yourself beside the 3D guide.' : stream ? framing(id) : 'Enable your camera to compare your pose.';
  $('show-camera').hidden=document.querySelector('.comparison-panel').hidden=!!p.demoOnly;
  motionPlayer.select(id);motionPlayer.mirror(flipped);
  drawCards();sceneApi?.setPose(id);rowingCorrection.setPose(id,stream);setWristMode(wristMode); $('switch-side').hidden=!(p.asymmetric || ['side','warrior'].includes(id));
  clearComparison();
- setFeedback({state:'unknown',title:p.demoOnly ? stream ? 'Live preview · no score' : 'Movement study' : stream ? 'Find your starting position' : 'Ready when you are',text:p.demoOnly ? stream ? 'Use the live preview to observe yourself. The illustrated guide does not assess your technique.' : 'Use the numbered steps to inspect each position. You can enable camera for self-observation without scoring.' : stream ? framing(id) : 'You can follow the guide without a camera, or enable it for body-shape feedback.'});
+ setFeedback({state:'unknown',title:p.demoOnly ? stream ? 'Live preview' : 'Movement study' : stream ? 'Find your starting position' : 'Ready when you are',text:p.demoOnly ? stream ? 'Compare your movement with the 3D demonstration.' : 'Select a numbered step, then enable the camera to compare your movement.' : stream ? framing(id) : 'You can follow the guide without a camera, or enable it for body-shape feedback.'});
 }
 function setFeedback(r) { $('focus-feedback').textContent=r.title+' — '+r.text; document.querySelector('.feedback').className = `feedback ${r.state}`; $('feedback-title').textContent = r.title; $('feedback-text').textContent = r.text; $('feedback-icon').textContent = r.state === 'good' ? '✓' : r.state === 'warning' ? '↗' : '◌'; }
 document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => {
@@ -150,7 +150,7 @@ document.querySelectorAll('[data-mobility]').forEach(button=>button.onclick=()=>
 $('help').onclick = () => $('help-dialog').showModal(); $('close-help').onclick = $('got-it').onclick = () => $('help-dialog').close();
 function updateTimer() { $('time').textContent = `00:${String(remaining).padStart(2, '0')}`; }
 function stopTimer() { clearInterval(timerId); timerId = null; $('timer').textContent = '▶'; $('timer').setAttribute('aria-label', 'Start hold timer'); }
-$('timer').onclick = () => { if (timerId) { stopTimer(); return } if (!remaining) remaining = poses.find(p=>p.id===current)?.hold || 30; $('timer').textContent = 'Ⅱ'; $('timer').setAttribute('aria-label', 'Pause hold timer'); timerId = setInterval(() => { remaining--; updateTimer(); if (!remaining) { stopTimer(); setFeedback({ state: 'unknown', title: 'Take a breath', text: 'Release gently. Rest or switch sides when you’re ready.' }) } }, 1000); };
+$('timer').onclick = () => { if (timerId) { stopTimer(); return } if (!remaining) remaining = poses.find(p=>p.id===current)?.hold || 30; $('timer').textContent = 'Ⅱ'; $('timer').setAttribute('aria-label', 'Pause hold timer'); timerId = setInterval(() => { remaining--; updateTimer(); if (!remaining) { stopTimer(); setFeedback({ state: 'unknown', title: 'Timer complete', text: 'Repeat the movement or switch sides.' }) } }, 1000); };
 function releaseCameraStream() {
  rowingCorrection.cancelPreparation();
  runId++;
@@ -171,7 +171,7 @@ function stopCamera({keepDialogOpen=false}={}) {
  if(!keepDialogOpen)$('camera-dialog').close();
  clearComparison(); $('mode').textContent = '○   REFERENCE PREVIEW'; setCameraButton('▣   Enable camera');
  $('camera-title').textContent = selectedPose().demoOnly ? 'Practice with a live preview.' : 'Your space. Your pace.';
- $('camera-sub').textContent = selectedPose().demoOnly ? 'Enable camera to see yourself beside the 3D guide. No technique scoring.' : 'Enable your camera to get live alignment cues.';
+ $('camera-sub').textContent = selectedPose().demoOnly ? 'Enable camera to see yourself beside the 3D guide.' : 'Enable your camera to get live alignment cues.';
  stopTimer(); setFeedback({state:'unknown',title:'Camera is off',text:'Your reference guide is ready. You can restart whenever you like.'});
 }
 $('camera').onclick = async () => {
@@ -212,8 +212,8 @@ $('camera').onclick = async () => {
             if (!stream || !selectedPose().demoOnly) { stopCamera(); return; }
             $('demo-camera').hidden = false; $('stage-layout').classList.add('with-preview');
             setCameraButton('Stop camera'); $('camera-title').textContent = 'Practice with a live preview.';
-            $('camera-sub').textContent = 'Your camera is beside the 3D guide. No technique scoring.';
-            setFeedback({state:'unknown',title:'Live preview · no score',text:'Observe your movement beside the illustration. Ask your coach to review technique.'});
+            $('camera-sub').textContent = 'Your camera is beside the 3D guide.';
+            setFeedback({state:'unknown',title:'Live preview',text:'Compare your movement with the 3D demonstration.'});
             if(selectedPose().type==='rowing'){$('demo-video').style.transform='none';void rowingCorrection.prepare(current,stream);$('camera-sub').textContent='The expert follows your horizontal direction.';}
             return;
         }
@@ -226,7 +226,7 @@ $('camera').onclick = async () => {
         if (!stream || selectedPose().demoOnly) { stopCamera(); return; }
         $('video').hidden = $('overlay').hidden = false; $('three').hidden = false; $('stage-note').hidden = true; $('rotate').hidden = false;
         $('stage').classList.add('live'); $('show-camera').disabled = false; $('mode').textContent = '●   LIVE · ON DEVICE';
-        setCameraButton('Stop camera'); $('camera-title').textContent = 'Make yourself comfortable.'; $('camera-sub').textContent = framing(current);
+        setCameraButton('Stop camera'); $('camera-title').textContent = 'Camera ready.'; $('camera-sub').textContent = framing(current);
         lastVideo = -1; const token = ++runId; requestAnimationFrame(t => track(t, token));
     } catch (e) {
         if(switchingCamera)releaseCameraStream();
@@ -293,7 +293,7 @@ function clearComparison() {
 }
 function renderComparison(result) {
  $('stage').dataset.match=result?.quality?.band || 'neutral';
- $('match-status').textContent=selectedPose().type==='rowing' && wristMode!=='aligned' ? 'Comparison example · not a target' : selectedPose().demoOnly ? 'Demonstration · no score' : result?.quality?.label || 'Waiting for a clear pose';
+ $('match-status').textContent=selectedPose().type==='rowing' && wristMode!=='aligned' ? 'Comparison example · not a target' : selectedPose().demoOnly ? 'Demonstration' : result?.quality?.label || 'Waiting for a clear pose';
  $('comparison-status').textContent=result ? 'Your angles / reference angles' : isUpperPose(current) ? 'Upper-body tracking needed to compare' : 'Full-body tracking needed to compare';
  $('comparison-metrics').replaceChildren();
  for(const row of result?.metrics || []) {

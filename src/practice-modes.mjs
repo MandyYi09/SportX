@@ -8,7 +8,7 @@ export const practiceModes = {
  clay: {title:'Clay shooting · movement demonstrations'},
  rowing: {title:'Sculling · three stroke studies'},
  tennis: {title:'Tennis · forehand & backhand'},
- gentle: {title:'Gentle movement · seated upper body', note:'A seated starting point for older adults. Use a stable chair without wheels and keep your feet supported. Choose a comfortable range; the camera compares upper-body shape only.',source:'https://www.nhs.uk/live-well/exercise/sitting-exercises/',sourceLabel:'Seated exercise guidance · NHS'},
+ gentle: {title:'Gentle movement · seated upper body', note:'Seated arm and shoulder exercises. Sit on a chair with both feet supported.',source:'https://www.nhs.uk/live-well/exercise/sitting-exercises/',sourceLabel:'Seated exercise guidance · NHS'},
 };
 const descriptions = {
  backswing:['Watch the preparation and turn during the backswing.','观察准备姿态与转体引拍动作。'],
@@ -28,10 +28,10 @@ export const practicePoses = [
   description:descriptions[clip.phase][0],cues:[...cues],
   zh:[clip.zhName,descriptions[clip.phase][1],[...cuesZh]],
  })),
-  { ...gentle, id: 'gentle-reset', name: 'Seated reset', description: 'Settle into your chair before moving your arms.', cues: ['Sit securely on a stable chair, with feet supported.', 'Rest your arms beside you and relax your shoulders.', 'Breathe normally. Stay in a position that feels comfortable.'] },
-  { ...gentle, id: 'gentle-open', name: 'Easy chest opening', description: 'Open your arms a little below shoulder level.', cues: ['Keep your feet supported and sit comfortably upright.', 'Open your arms gently to the sides without pulling them back.', 'Use a small range; return to rest when you want to.'] },
-  { ...gentle, id: 'gentle-bend', name: 'Gentle elbow bend', description: 'Bend and lower your forearms without weights.', cues: ['Let your upper arms stay near your sides.', 'Slowly bend your elbows, then lower your hands again.', 'Relax your shoulders and use a comfortable range.'] },
-  { ...gentle, id: 'gentle-lift', name: 'Easy arm lift', description: 'Lift your arms partway to the sides, then lower them.', cues: ['Start with your arms resting by your sides.', 'Lift only as far as comfortable, keeping elbows soft.', 'Lower slowly. You do not need to reach the model’s height.'] },
+  { ...gentle, id: 'gentle-reset', name: 'Seated reset', description: 'Settle into your chair before moving your arms.', cues: ['Sit securely on a stable chair, with feet supported.', 'Rest your arms beside you and relax your shoulders.', 'Sit upright with your feet supported.'] },
+  { ...gentle, id: 'gentle-open', name: 'Easy chest opening', description: 'Open your arms a little below shoulder level.', cues: ['Keep your feet supported and sit comfortably upright.', 'Open your arms gently to the sides without pulling them back.', 'Bring your arms back to the starting position.'] },
+  { ...gentle, id: 'gentle-bend', name: 'Gentle elbow bend', description: 'Bend and lower your forearms without weights.', cues: ['Let your upper arms stay near your sides.', 'Slowly bend your elbows, then lower your hands again.', 'Keep your shoulders relaxed as you bend and extend your elbows.'] },
+  { ...gentle, id: 'gentle-lift', name: 'Easy arm lift', description: 'Lift your arms partway to the sides, then lower them.', cues: ['Start with your arms resting by your sides.', 'Lift your arms to the sides with elbows slightly bent.', 'Lower your arms slowly to your sides.'] },
 ];
 const seat = [[-.23,1.4,0],[.23,1.4,0],[-.31,1.01,0],[.31,1.01,0],[-.36,.64,0],[.36,.64,0],[-.16,.75,0],[.16,.75,0],[-.24,.68,.45],[.24,.68,.45],[-.24,.12,.45],[.24,.12,.45]];
 const frame = (base, changes) => base.map((p,i) => [...(changes[i] || p)]);

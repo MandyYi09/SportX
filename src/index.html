@@ -33,21 +33,15 @@
                 </section>
                 <p id="category-intro" class="category-intro" hidden></p>
                 <div id="poses"></div>
-                <div class="before"><span>☀</span>
-                    <h3>Ease into it.</h3>
-                    <p>Warm up with 5–10 minutes of light movement. A gentle pull is enough. Stop if you feel pain.</p>
-                    <a href="https://www.mayoclinic.org/healthy-lifestyle/fitness/in-depth/stretching/art-20546848"
-                        target="_blank" rel="noreferrer">A note on safe stretching ↗</a>
-                </div>
             </aside>
             <section class="studio">
                 <nav id="sequence" class="sequence" aria-label="Movement steps" hidden><div class="sequence-heading"><strong id="sequence-title"></strong><span id="sequence-count"></span></div><div id="sequence-steps"></div></nav>
                 <div id="stage-layout" class="stage-layout"><div class="stage" id="stage">
                     <div class="stage-top"><span class="pill" id="mode">○ &nbsp; REFERENCE PREVIEW</span><span
                             class="stage-type">3D MOVEMENT GUIDE</span></div>
-                    <div id="three"></div><div class="focus-toolbar"><button id="focus-camera" class="glass">Show camera</button><button id="focus-stop" class="glass">Stop camera</button><button id="exit-focus" class="glass" hidden>Back to studio · Esc</button></div><div id="focus-feedback" class="focus-feedback" aria-live="polite"></div><span id="reference-label" class="reference-label">3D reference · 2D pose estimate</span><span id="match-status" class="match-status" aria-live="polite">Waiting for a clear pose</span><div class="stage-note" id="stage-note" hidden></div>
+                    <div id="three"></div><div class="focus-toolbar"><button id="focus-camera" class="glass">Show camera</button><button id="focus-stop" class="glass">Stop camera</button><button id="exit-focus" class="glass" hidden>Back to studio · Esc</button></div><div id="focus-feedback" class="focus-feedback" aria-live="polite"></div><span id="reference-label" class="reference-label">3D pose reference</span><span id="match-status" class="match-status" aria-live="polite">Waiting for a clear pose</span><div class="stage-note" id="stage-note" hidden></div>
                     <div class="stage-bottom"><span id="angle-label">↔ &nbsp; Face your camera</span><button id="switch-side" class="glass" hidden>⇄ Switch side</button><button id="static-camera" class="glass" aria-pressed="false" hidden>Static camera · Off</button><button id="reset-view" class="glass" hidden>Reset view</button><button id="rotate" class="glass">↻ Rotate</button></div>
-                </div><section id="demo-camera" class="demo-camera" aria-label="Live camera preview" hidden><div class="demo-camera-heading"><strong>Your camera · no scoring</strong><button id="demo-camera-switch" type="button" hidden>Switch camera</button><button id="demo-camera-stop" type="button">Stop camera</button></div><div class="demo-camera-feed"><video id="demo-video" autoplay playsinline muted></video></div><p>Watch your own movement beside the 3D illustration. The camera does not assess technique.</p></section></div>
+                </div><section id="demo-camera" class="demo-camera" aria-label="Live camera preview" hidden><div class="demo-camera-heading"><strong>Your camera</strong><button id="demo-camera-switch" type="button" hidden>Switch camera</button><button id="demo-camera-stop" type="button">Stop camera</button></div><div class="demo-camera-feed"><video id="demo-video" autoplay playsinline muted></video></div><p>Watch your movement beside the 3D demonstration.</p></section></div>
                 <section id="motion-player" class="motion-player" aria-labelledby="motion-heading" hidden>
                     <div class="motion-heading"><h3 id="motion-heading">3D movement playback</h3><span id="motion-phase" class="motion-phase"></span></div>
                     <div class="motion-controls"><button type="button" id="motion-play" class="primary">Play</button><button type="button" id="motion-restart">Restart</button><label><span>Speed</span><input type="range" id="motion-speed" aria-label="Playback speed" min="0.25" max="1" step="0.01" value="1"><output id="motion-speed-value" for="motion-speed">1×</output></label><output id="motion-time"></output></div>
@@ -63,11 +57,11 @@
                     <div id="wrist-detail" role="img" aria-label="Enlarged wrist demonstration"></div>
                     <div class="wrist-key"><span>Forearm</span><span>Wrist</span><span>Hand &amp; grip</span></div>
                     <p id="wrist-explanation" aria-live="polite"></p>
-                    <small>Draw-phase comparison · changes the hands on the figure above. No camera measurement.</small>
+                    <small>Draw-phase comparison · changes the hands on the figure above.</small>
                 </section>
                 <div class="camera-actions"><button class="primary" id="camera">▣ Enable camera</button><button id="show-camera" class="quiet camera-toggle" disabled>▣ Show camera</button></div><dialog id="camera-dialog"><div class="camera-dialog-header"><h2>Your camera</h2><button id="camera-switch" class="quiet" hidden>Switch camera</button><button id="close-camera" class="quiet">Close ×</button></div><div class="camera-feed"><video id="video" autoplay playsinline muted hidden></video><canvas
                         id="overlay" hidden></canvas>
-                    </div><p>Solid lines: you. Dashed blue lines: reference.</p></dialog><p id="camera-setup" class="camera-setup">Camera setup: face the camera with your whole body visible.</p><div class="comparison-panel"><div class="comparison-legend"><span><i class="you-key"></i>Your pose</span><span><i class="reference-key"></i>Reference</span><span><i class="adjust-key"></i>Try adjusting</span></div><p id="comparison-status">Full-body tracking needed to compare</p><div id="comparison-metrics"></div><small>Dashed lines are scaled to your torso. Angles are approximate; a closer match is not a safety score.</small></div><div class="camera-bar">
+                    </div><p>Solid lines: you. Dashed blue lines: reference.</p></dialog><p id="camera-setup" class="camera-setup">Camera setup: face the camera with your whole body visible.</p><div class="comparison-panel"><div class="comparison-legend"><span><i class="you-key"></i>Your pose</span><span><i class="reference-key"></i>Reference</span><span><i class="adjust-key"></i>Try adjusting</span></div><p id="comparison-status">Full-body tracking needed to compare</p><div id="comparison-metrics"></div><small>Dashed lines are scaled to your torso.</small></div><div class="camera-bar">
                     <div><strong id="camera-title">Your space. Your pace.</strong><span id="camera-sub">Enable your
                             camera to get live alignment cues.</span></div>
                 </div>
@@ -79,7 +73,7 @@
                 <p id="pose-description"></p>
                 <div id="practice-note" class="practice-note" hidden><p id="practice-note-text"></p><a id="practice-source" target="_blank" rel="noreferrer"></a></div>
                 <div class="facts"><span>◎ <b id="hold-duration">30 sec</b><small id="duration-label">Suggested hold</small></span><span>⌁
-                        <b id="pose-level">Easy</b><small>Take it gently</small></span></div>
+                        <b id="pose-level">Easy</b><small>Difficulty</small></span></div>
                 <div class="divider"></div>
                 <h3 id="cue-heading">Find your alignment</h3>
                 <div id="cues"></div>
@@ -89,30 +83,26 @@
                     </div>
                 </div>
                 <div class="timer" id="timer-panel">
-                    <div><span id="timer-label">COMFORTABLE HOLD</span><b id="time">00:30</b></div><button id="timer"
+                    <div><span id="timer-label">HOLD TIMER</span><b id="time">00:30</b></div><button id="timer"
                         aria-label="Start hold timer">▶</button>
                 </div>
-                <p class="timer-note" id="timer-note">A manual timer. Release sooner if you need to.</p>
+                <p class="timer-note" id="timer-note">Start or pause the timer.</p>
             </aside>
         </div>
-        <footer><span>MOVE WITH AWARENESS, NOT PERFECTION.</span>
-            <p>Alignment cues are estimates, not a safety assessment or medical advice. Never push through pain.</p>
-            <span>Made for a gentler everyday.</span>
-        </footer>
     </main>
     <dialog id="help-dialog"><button id="close-help" class="close" aria-label="Close">×</button>
         <div class="eyebrow">WELCOME TO YOUR PRACTICE</div>
-        <h2>A little guidance.<br>A lot of listening to your body.</h2>
+        <h2>Start your practice</h2>
         <ol>
-            <li>Choose a movement and follow its gentle setup cues.</li>
-            <li>Follow the selected movement’s camera setup with good lighting. Gentle movements only need your shoulders, arms and hips in frame. Rowing and Tennis offer a live camera preview beside the 3D guide without technique scoring.</li>
-            <li>Enable the camera. Landmarks and alignment cues appear when tracking is clear.</li>
-            <li>Use the optional timer while comfortable. Stop immediately if it hurts.</li>
+            <li>Select a movement and view the 3D demonstration.</li>
+            <li>Position the camera as shown and keep your limbs visible.</li>
+            <li>For rowing, enable the camera to find your direction, then start correction.</li>
+            <li>Follow the adjustment arrows. A confirmation appears when your pose matches.</li>
         </ol>
-        <p>Drag to rotate or tilt the model, and scroll to zoom. Reset view restores the default framing. Follow the camera setup shown for the selected pose; changing the model view does not change the tracking angle. Side-view poses compare only the visible body side. The sculling model is an illustration of two-oar movement; it does not assess blades or wrists. Background colors show similarity: red means a different shape, orange means some adjustments, and green means the visible angles are close. They do not indicate safety. Seated poses and overlapping limbs may be harder to track. This experimental coach checks a few visible joint relationships. It cannot see pain, joint loading, balance,
-            or every unsafe position. Camera angle, clothing, and occlusion can affect results. If you have an injury or
-            health condition, ask a qualified professional which movements suit you.</p><p>More guidance: <a href="https://health.clevelandclinic.org/downward-dog-adho-mukha-svanasana" target="_blank" rel="noreferrer">Downward Dog setup</a>,  <a href="https://www.nhs.uk/live-well/exercise/sitting-exercises/" target="_blank" rel="noreferrer">NHS seated exercises</a> and <a href="https://www.nhs.uk/live-well/exercise/how-to-stretch-after-exercising/" target="_blank" rel="noreferrer">stretching after exercise</a>.</p><button id="got-it"
-            class="primary">Find my space</button>
+        <p>Drag to rotate or tilt the model, scroll to zoom, and use Reset view to restore the default framing.</p>
+        <p>Currently, only limbs can be tracked; equipment and extremities cannot be recognized.</p>
+        <p>Colors show pose similarity: red for larger differences, orange for adjustments, and green for a match.</p>
+        <button id="got-it" class="primary">Start practice</button>
     </dialog>
     <video id="tracking-video" autoplay playsinline muted aria-hidden="true" tabindex="-1"></video>
     <script type="module" src="app.js?v=48"></script>
