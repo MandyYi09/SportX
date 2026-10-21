@@ -35,6 +35,7 @@ const zh = {
   'An empty-hand mobility study for this sport: relaxed standing, arm movement and a small torso turn. Use no firearm or equipment. These illustrative poses do not teach aiming or firing and are not validated technique targets.': '本模式提供与这项运动相关的空手活动观察：放松站立、手臂活动和小幅转体。请勿使用枪械或器械。这些示意姿势不教授瞄准或击发，也不是经过验证的技术标准。',
   'fitAI — Movement practice prototype': 'fitAI — 动作练习原型',
   'Language': '语言',
+  'Playback ends at the last available capture frame.': '播放终点受现有动捕数据长度限制。',
   'An interactive movement practice prototype with 3D demonstrations and optional on-device pose feedback.': '互动动作练习原型，提供 3D 示范和可选的设备端姿态反馈。',
   'Your practice': '你的练习', 'How it works ↗': '使用说明 ↗',
   'Movement category': '动作类别', 'All': '全部', 'Stretches': '拉伸', 'Yoga': '瑜伽', 'Rowing': '双桨赛艇', 'Tennis': '网球', 'Gentle': '舒缓活动',
