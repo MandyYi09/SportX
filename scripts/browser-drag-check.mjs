@@ -1,0 +1,22 @@
+import fs from 'node:fs/promises';
+const pages=await(await fetch('http://127.0.0.1:9224/json/list')).json();const page=pages.find(p=>p.type==='page'&&p.url.includes('5188'));
+const ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);let seq=0;const pending=new Map(),errors=[];
+ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.id){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(m.error):p.resolve(m.result);}else if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails);};
+const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq;pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params}));});
+const run=async expression=>{const r=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
+await send('Runtime.enable');await send('Page.reload',{ignoreCache:true});
+for(let i=0;i<30;i++){if(await run(`!!document.querySelector('[data-pose="rowing-arms"]')&&document.querySelectorAll('canvas').length===3`))break;await new Promise(r=>setTimeout(r,200));}
+await run(`document.getElementById('motion-seek').value='3';document.getElementById('motion-seek').dispatchEvent(new Event('input'));`);await new Promise(r=>setTimeout(r,700));
+const box=await run(`(()=>{const r=document.querySelector('#three canvas').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,scale:1};})()`);
+const before=(await send('Page.captureScreenshot',{format:'png',clip:box})).data;
+const x=box.x+box.width*.5,y=box.y+box.height*.5;
+await send('Input.dispatchMouseEvent',{type:'mousePressed',x,y,button:'left',buttons:1,clickCount:1});
+for(let i=1;i<=12;i++)await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:x+i*16,y:y+i*6,button:'left',buttons:1});
+await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:x+192,y:y+72,button:'left',buttons:0,clickCount:1});await new Promise(r=>setTimeout(r,500));
+const after=(await send('Page.captureScreenshot',{format:'png',clip:box})).data;if(before===after)throw Error('Mouse drag did not rotate');
+if(await run(`document.querySelector('#three canvas').classList.contains('dragging')`))throw Error('Pointer was not released');
+await fs.writeFile('artifacts/drag-rotation-preview.png',Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});await send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x-100,y:y-50}]});await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await new Promise(r=>setTimeout(r,300));
+const touched=(await send('Page.captureScreenshot',{format:'png',clip:box})).data;if(touched===after)throw Error('Touch drag did not rotate');
+await run(`document.querySelector('[data-model-view="side"]').click()`);if(!await run(`document.querySelector('[data-model-view="side"]').getAttribute('aria-pressed')==='true'`))throw Error('Preset reset failed');
+if(errors.length)throw Error(JSON.stringify(errors));console.log('PASS: mouse horizontal/vertical drag, pointer release, touch drag, preset reset, rendered view changes, no browser exceptions.');await send('Browser.close');ws.close();

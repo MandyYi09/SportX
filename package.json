@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "python3 scripts/serve.py",
-    "test": "node tests/pose-comparison.mjs && node tests/motion-playback.mjs",
+    "dev": "node scripts/preview.mjs --port 5188",
+    "test": "node tests/pose-comparison.mjs && node tests/motion-playback.mjs && node tests/captured-motion.mjs",
     "build": "node scripts/build.mjs"
   }
 }

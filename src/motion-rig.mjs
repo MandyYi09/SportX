@@ -1,3 +1,4 @@
+import {sampleCapturedMotion} from './captured-motion.mjs';
 import {motionById} from './motion-catalog.mjs';
 import {tennisGrip,gripFrame,mirrorGrip} from './tennis-grip.mjs';
 import {rowingAttachment,clayAttachment} from './equipment-grip.mjs?v=22';
@@ -152,6 +153,7 @@ function clayState(clip,t) {
  return interpolateTrack(tracks[clip.track],t);
 }
 export function sampleMotion(id,elapsed=0,flipped=false) {
+ const captured=sampleCapturedMotion(id,elapsed,flipped);if(captured)return captured;
  const clip=motionById[id];if(!clip)return null;
  const t=clip.sourceStart+clamp(Number.isFinite(elapsed)?elapsed:0,0,clip.sourceEnd-clip.sourceStart);
  const state=clip.type==='tennis'?interpolateTrack(clip.track==='forehand'?forehand:backhand,t):clip.type==='rowing'?rowingState(clip,t):clayState(clip,t);

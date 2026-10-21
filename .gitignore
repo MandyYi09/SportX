@@ -2,3 +2,4 @@ build/
 artifacts/
 .DS_Store
 .vscode/
+source/
