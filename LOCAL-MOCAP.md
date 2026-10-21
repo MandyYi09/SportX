@@ -2,30 +2,30 @@
 
 Run `npm run dev` on port 5187. Full source videos and BVH files remain unchanged in ignored `source/`. `python scripts/convert-mocap.py` generates complete float32 skeletal assets, not trimmed video files. Stored manifests record source SHA-256, hierarchy, units, frame counts and stage alignment. One initialization frame is removed; interpolation preserves measured joint transforms and bone lengths.
 
-## User-selected playback windows — 2026-10-21
+## Reviewed action windows — 2026-10-21
 
-`motion-catalog.mjs` is the interval definition; `capture-catalog.mjs` maps each visible study to its corresponding capture. Playback and seeking are bounded, including restart, replay, speed changes and the underlying sampler. The public timeline displays elapsed time within the trimmed clip, starting at zero. Source filenames, review timecodes and data-length notices are not displayed to users.
+The user supplied approximate video ranges to help locate actions. Those ranges are retained as reference hints in `motion-catalog.mjs`; they are not copied into the player. `capture-catalog.mjs` defines the reviewed action intervals on the BVH timeline after its initialization frame. Playback, restart, seeking and sampling enforce those intervals. Public progress begins at zero and shows no source filenames, original timecodes or export diagnostics.
 
-| Source | Study | Requested seconds |
-| --- | --- | --- |
-| sheji_01_006 | 完整的射击 | 1–22 |
-| sheji_02_008 | 持枪准备 | 2–5 |
-| sheji_03_009 | 举枪贴腮 | 1–6 |
-| sheji_04_010 | 下枪 | 1–13 |
-| huachuan_01_Mandy_043 | 出手划 | 2–6 |
-| huachuan_02_Mandy_045 | 1/2 划 | 0–9 |
-| huachuan_03_Mandy_046 | 全桨划 | 0–8 |
-| wangqiu_01_012 | 完整正手和反手挥拍 | 0–8 |
-| wangqiu_03_015 | 正手引拍 | 0–4 |
-| wangqiu_04_016 | 完整正手挥拍 | 0–6 |
-| wangqiu_06_020 | 完整反手挥拍 | 0–8 |
-| wangqiu_07_023 | 正手准备 | 0–5 |
-| wangqiu_12_030 | 正手降拍 | 1–5 |
-| wangqiu_09_026 | 完整反手挥拍 | 0–8 |
+Review used contact sheets of all 14 source videos at 0.5-second intervals, then joint trajectories sampled at 0.1 seconds to distinguish onset, held positions, return and unrelated motion. Local evidence is in ignored `artifacts/boundary-review/`: per-recording video sheets, `kinematics.json` and `kinematics.txt`. These are visual editing boundaries with small settling margins, not measured impact/contact events or a claim of frame-accurate video synchronization.
 
-`wangqiu_11_028` is excluded. Previous exclusions `02_013` and `08_024` remain excluded. Independent tennis studies supplement the original breakdowns of takes 04/06. The original forehand and backhand groups each retain backswing, racket drop, swing and full stroke. Forehand breakdown windows are 1–3.1, 3.1–3.6 and 3.6–6 seconds; backhand windows are 0.75–3.9, 3.9–4.4 and 4.4–6.8 seconds, preserving their previous BVH intervals.
+| Source | Study | Video search hint | Reviewed BVH interval | Boundary criterion |
+| --- | --- | --- | --- | --- |
+| sheji_01_006 | 完整的射击 | 1–22 | 0.65–20.05 | Initial purposeful lift through final lowering, excluding initial wait and later readjustment |
+| sheji_02_008 | 持枪准备 | 2–5 | 0.55–4.35 | Raise into ready hold; stop before lowering starts |
+| sheji_03_009 | 举枪贴腮 | 1–6 | 1.20–4.80 | Lift from rest through ready and cheek mount; stop once mounted pose settles |
+| sheji_04_010 | 第二次完整动作 | 1–13 | 2.05–13.65 | Retain preparation, ready, cheek mount, holding/turns and lowering; remove initial idle wait and trailing readjustment |
+| huachuan_01_Mandy_043 | 出手划 | 2–6 | 1.60–5.65 | Hands move away, extend, then draw back to finish; exclude later lowering |
+| huachuan_02_Mandy_045 | 1/2 划 | 0–9 | 0.65–7.25 | Begin stroke setup and complete draw; stop before unrelated reset |
+| huachuan_03_Mandy_046 | 全桨划 | 0–8 | 0.50–8.05 | Hands away, catch, drive and recovery; exclude final drop/rest |
+| wangqiu_01_012 | 完整正手和反手挥拍 | 0–8 | 0.25–7.10 | Both strokes and return to ready, excluding idle tail |
+| wangqiu_03_015 | 正手引拍 | 0–4 | 0.45–2.85 | Turn and draw the racket back to set position; omit later release |
+| wangqiu_04_016 | 完整正手挥拍 | 0–6 | 0.80–5.65 | Initiate turn through swing, follow-through and return; omit later extra gesture |
+| wangqiu_06_020 | 完整反手挥拍 | 0–8 | 1.10–7.15 | Initiate backhand turn through follow-through and return |
+| wangqiu_07_023 | 正手准备 | 0–5 | 0.55–4.65 | Set knees/hands into ready stance and preserve its settled hold |
+| wangqiu_12_030 | 正手降拍 | 1–5 | 2.60–3.65 | Only racket/wrist descent after backswing; omit preceding turn and long terminal hold |
+| wangqiu_09_026 | 完整反手挥拍 | 0–8 | 0.80–6.65 | Backhand preparation through return; omit idle tail |
 
-Video and BVH exports have different durations and no shared timecode. Equal-second matching is approximate, not a verified frame-accurate synchronization. The first shooting video's requested end (22 seconds) exceeds its 20.6917-second BVH; actual playback ends at the last measured frame without exposing the export mismatch in the user interface. Other requested ranges fit within the available data. No source media is rewritten, retimed or exported.
+The original forehand and backhand breakdowns remain available. They sample the same source as their complete stroke and are contiguous: forehand 0.80–3.10 / 3.10–3.60 / 3.60–5.65; backhand 1.10–3.90 / 3.90–4.40 / 4.40–7.15. The seven independent recordings supplement these six original phases; they do not replace them. `11_028`, `02_013` and `08_024` remain excluded. No original videos or BVH files are modified.
 
 ## Source skeletons and illustrative geometry
 
