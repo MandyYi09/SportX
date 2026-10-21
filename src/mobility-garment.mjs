@@ -1,6 +1,8 @@
+import {createWellnessPants} from './wellness-pants.mjs';
 // A welded waist/crotch and two continuous trouser legs. The shirt shares the
 // waistband vertices, so side bends cannot pull open a gap between separate shells.
 export function createMobilityGarment(THREE,shirt,pants,{female=false}={}){
+ if(female)return createWellnessPants(THREE,[pants,shirt,shirt],{upperBody:'casual',waistHeight:.07,waistRadius:.145,name:'continuous-mobility-outfit'});
  const segments=48,legRows=48,bodyRows=48,vertices=[],indices=[],legs=[[],[]],seam=new Map();
  for(let side=0;side<2;side++)for(let row=0;row<=legRows;row++){
   legs[side][row]=[];
@@ -53,17 +55,16 @@ export function createMobilityGarment(THREE,shirt,pants,{female=false}={}){
     if(t<.3){const u=t/.3;center=waist.clone().multiplyScalar((1-u)**2).addScaledVector(hip.clone().addScaledVector(pelvisUp,.10),2*u*(1-u)).addScaledVector(bendEnd,u*u);tangent=pelvisUp.clone().lerp(axis,u).normalize();}
     else{center=bendEnd.clone().lerp(top,(t-.3)/.7);tangent=axis;}
     const f=frame(tangent,front),shoulderRadius=.17+.035*THREE.MathUtils.smoothstep(t,.3,.82);
-    const neckline=THREE.MathUtils.smoothstep(t,.93,1),rx=(shoulderRadius*(1-neckline)+.063*neckline)*width*(female?1-.10*Math.exp(-(((t-.35)/.22)**2)):1),rz=(.12+.008*Math.sin(t*Math.PI))*(1-neckline)+.056*neckline;
-    const chest=female&&s>0?.022*Math.exp(-(((t-.70)/.16)**2))*Math.exp(-(((Math.abs(c*rx)-.07)/.065)**2))*s:0;
-    point.copy(center).addScaledVector(f.x,c*rx).addScaledVector(f.z,s*rz*(female?.95:1)+chest);
+    const neckline=THREE.MathUtils.smoothstep(t,.93,1),rx=(shoulderRadius*(1-neckline)+.063*neckline)*width,rz=(.12+.008*Math.sin(t*Math.PI))*(1-neckline)+.056*neckline;
+    point.copy(center).addScaledVector(f.x,c*rx).addScaledVector(f.z,s*rz);
    }else{
     const f=frames[side],t=row/legRows;
     const start=waist.clone().addScaledVector(pelvisX,inner?0:.17*width*c).addScaledVector(pelvisFront,.12*s).addScaledVector(pelvisUp,inner?-.14*(1-Math.abs(s)**4):0);
     if(t<=.20){
-     const ring=coords[6+side].clone().lerp(coords[8+side],.30).addScaledVector(f.thigh.x,c*(female?.096:.086)*width).addScaledVector(f.thigh.z,s*(female?.108:.095));
+     const ring=coords[6+side].clone().lerp(coords[8+side],.30).addScaledVector(f.thigh.x,c*.086*width).addScaledVector(f.thigh.z,s*.095);
      point.copy(start).lerp(ring,THREE.MathUtils.smoothstep(t,0,.20));
     }else if(t<=.56){
-     const u=(t-.20)/.36,along=.30+.70*u,rx=((female?.096:.086)-(female?.044:.034)*u)*width,rz=(female?.108:.095)-(female?.053:.04)*u;
+     const u=(t-.20)/.36,along=.30+.70*u,rx=(.086-.034*u)*width,rz=.095-.04*u;
      point.copy(coords[6+side]).lerp(coords[8+side],along).addScaledVector(f.thigh.x,c*rx).addScaledVector(f.thigh.z,s*rz);
     }else{
      const u=(t-.56)/.44,blend=THREE.MathUtils.smoothstep(u,0,.22),x=f.thigh.x.clone().lerp(f.shin.x,blend).normalize(),z=f.thigh.z.clone().lerp(f.shin.z,blend).normalize();
