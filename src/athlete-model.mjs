@@ -1,4 +1,5 @@
 import {createYogaGarment} from './yoga-garment.mjs';
+import {createMobilityGarment} from './mobility-garment.mjs';
 // Contoured surfaces follow the existing measured joints; animation data stays untouched.
 export function createAthleteModel(THREE, {body, skin, gender='male'}) {
  const female=gender==='female';
@@ -27,6 +28,9 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
  const tennisHair=new THREE.MeshStandardMaterial({color:0x694533,roughness:1});
  const yogaSkin=new THREE.MeshStandardMaterial({color:0xc0987b,roughness:.88});
  const yogaFabric=new THREE.MeshStandardMaterial({color:female?0xe9ecef:0x202633,roughness:.96});
+ const mobilityShirt=new THREE.MeshStandardMaterial({color:female?0x9fb6af:0xd7cbb7,roughness:.98});
+ const mobilityPants=new THREE.MeshStandardMaterial({color:female?0x424b57:0x3c4b5a,roughness:.97});
+ const mobilityOutfit=createMobilityGarment(THREE,mobilityShirt,mobilityPants,{female});
  const femaleTop=new THREE.MeshStandardMaterial({color:0xe9ecef,roughness:.9});
  const matrix=new THREE.Matrix4();
  const v=()=>new THREE.Vector3();
@@ -62,6 +66,7 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
   m.position.copy(a);m.quaternion.setFromRotationMatrix(matrix.makeBasis(x,y,z));m.scale.y=length;
  }
  const torso=surface([[0,.16,.105],[.12,.175,.115],[.30,.146,.098],[.50,.163,.112],[.73,.205,.127],[.88,.221,.115],[.96,.181,.094],[1,.064,.058]],body);
+ root.add(mobilityOutfit.root);
  // A separate pelvis volume overlaps the waist and follows hip rotation.
  const pelvis=surface([[0,.002,.002],[.12,.119,.079],[.35,.174,.113],[.64,.181,.12],[.90,.162,.106],[1,.153,.10]],fabric);
  const neck=surface([[0,.065,.059],[.25,.059,.055],[.75,.048,.046],[1,.059,.052]],skin);
@@ -149,6 +154,7 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
  const rowingCalf=profileGeometry([[0,.039,.040],[.18,.045,.049],[.38,.050,.054],[.65,.039,.042],[1,.027,.029]]);
  const tennisTorso=profileGeometry([[0,.153,.105],[.20,.161,.111],[.43,.155,.106],[.67,.180,.119],[.86,.205,.116],[.94,.182,.091],[1,.061,.055]]);
  const tennisSleeve=profileGeometry([[0,.051,.052],[.12,.071,.070],[.40,.073,.067],[.80,.067,.062],[1,.064,.060]]);
+ const mobilitySleeve=profileGeometry([[0,.064,.060],[.15,.066,.062],[.45,.065,.061],[.80,.059,.056],[1,.058,.055]]);
  const poloCollar=new THREE.Group();root.add(poloCollar);poloCollar.visible=false;poloCollar.name='tennis-polo-collar';
  function collarPatch(points,material){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(points.flat(),3));g.setIndex([0,1,2,0,2,3]);g.computeVertexNormals();const m=mesh(g,material,poloCollar);m.material.side=THREE.DoubleSide;return m;}
  for(const side of [-1,1]){
@@ -297,12 +303,13 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
    for(let i=0;i<p.count;i++){const y=p.getY(i),waist=Math.exp(-(((y-.35)/.22)**2));p.setX(i,p.getX(i)*(.94-.09*waist));p.setZ(i,p.getZ(i)*(.98+.04*Math.exp(-(((y-.72)/.15)**2))));}
    p.needsUpdate=true;g.computeVertexNormals();
   }
-  for(const g of new Set([regularArm,regularForearm,yogaArm,yogaForearm,rowingArm,rowingForearm,regularThigh,regularCalf,rowingThigh,rowingCalf,yogaThigh]))g.scale(.88,1,.88);
+  for(const g of new Set([regularArm,regularForearm,yogaArm,yogaForearm,rowingArm,rowingForearm,regularThigh,regularCalf,rowingThigh,rowingCalf,yogaThigh,mobilitySleeve]))g.scale(.88,1,.88);
   rowingShortMaterial.vertexColors=false;rowingShortMaterial.color.set(0x173d45);
  }
- let shooting=false,rowing=false,tennis=false,yoga=false,bentYoga=false,currentSport=null,currentPose=null;
+ let shooting=false,rowing=false,tennis=false,yoga=false,mobility=false,bentYoga=false,currentSport=null,currentPose=null;
  function setSport(sport,pose=null){
-  if(sport===currentSport&&pose===currentPose)return;currentSport=sport;currentPose=pose;shooting=sport==='clay';rowing=sport==='rowing';tennis=sport==='tennis';yoga=sport==='yoga';root.userData.sport=sport;
+  if(sport===currentSport&&pose===currentPose)return;currentSport=sport;currentPose=pose;shooting=sport==='clay';rowing=sport==='rowing';tennis=sport==='tennis';yoga=sport==='yoga';mobility=sport==='stretch'||sport==='gentle';root.userData.sport=sport;
+  mobilityOutfit.root.visible=mobility;torso.visible=!mobility;
   bentYoga=yoga&&['down-dog','plank','forearm-plank','cobra','sphinx','child','tabletop','chair'].includes(pose);
   skinSurfaces.forEach(m=>{m.material=yoga?yogaSkin:tennis?tennisSkin:rowing?rowingSkin:shooting?shootingSkin:skin;});
   torso.material=yoga?yogaSkin:tennis?tennisNavy:rowing?rowingSkin:shooting?shootingBlue:body;torso.geometry=bentYoga?yogaSkinTorso:tennis?tennisTorso:rowing||yoga?rowingTorso:shooting?captureTorso:regularTorso;
@@ -347,6 +354,18 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
     part.elbow.scale.multiplyScalar(.88);
    }
   }
+  if(mobility){
+   pelvis.visible=leggings.visible=femaleTank.visible=false;
+   head.scale.setScalar((female?.96:1)*1.08);neck.geometry=yogaNeck;
+   skinSurfaces.forEach(m=>{m.material=yogaSkin;});hair.color.set(0x3b3029);
+   for(const part of limbs){
+    part.upper.geometry=yogaArm;part.lower.geometry=yogaForearm;
+    part.upper.material=part.lower.material=part.elbow.material=yogaSkin;
+    part.sleeve.visible=part.shoulder.visible=true;part.sleeve.geometry=mobilitySleeve;part.sleeve.material=mobilityShirt;
+    part.shoulder.material=mobilityShirt;part.shoulder.scale.set(female?.055:.061,.05,.056);
+    part.thigh.visible=part.calf.visible=part.knee.visible=false;part.elbow.scale.setScalar(female?.031:.035);
+   }
+  }
  }
  const shoulder=v(),hip=v(),axis=v(),lateral=v(),forward=v();
  return {root,setSport,update(coords,sample,anchors){
@@ -362,6 +381,7 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
   shootingVest.position.copy(torso.position);shootingVest.quaternion.copy(torso.quaternion);shootingVest.scale.copy(torso.scale);
   poloCollar.position.copy(torso.position);poloCollar.quaternion.copy(torso.quaternion);poloCollar.scale.copy(torso.scale);
   pelvis.position.copy(hip).addScaledVector(axis,-.115);pelvis.quaternion.copy(anchors.pelvis.quaternion);pelvis.scale.set(coords[6].distanceTo(coords[7])/.28,.23,1);
+  if(mobility)mobilityOutfit.update(coords);
   if(shooting)updateTrousers(coords,hip,axis,lateral,forward,width);
   if(bentYoga)yogaGarment.update(coords);
   else if(yoga)updateTrousers(coords,hip,axis,lateral,forward,width);

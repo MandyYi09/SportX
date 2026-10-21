@@ -156,7 +156,7 @@ for(const pose of poses){
  const source=coords.map(p=>p.toArray());female.update(coords,sample,anchors);female.root.updateMatrixWorld(true);
  assert.deepEqual(coords.map(p=>p.toArray()),source,'Variant must not alter joint coordinates');
  assert.ok(female.root.getObjectByName('athlete-head').position.distanceTo(anchors.head.position)<1e-9,'Variant must preserve the captured head anchor');
- assert.equal(female.root.getObjectByName('female-leggings').visible,!['clay','rowing','tennis'].includes(pose.type));
+ assert.equal(female.root.getObjectByName('female-leggings').visible,!['clay','rowing','tennis','stretch','gentle'].includes(pose.type));
  female.root.traverse(m=>{assert.ok(m.matrixWorld.elements.every(Number.isFinite),`${pose.id}: female transform`);if(m.isMesh&&m.visible)assert.ok(m.geometry.attributes.position.array.every(Number.isFinite),`${pose.id}: female surface`);});
 }
 console.log('PASS: contoured athlete surfaces, outward normals, finite animation, yoga garments, both model variants across all movements, preserved anchors and reusable geometry.');

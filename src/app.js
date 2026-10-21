@@ -17,6 +17,7 @@ import {createTennisHand,createWrappedHand,placeTennisHand,createRelaxedHand} fr
 import {createTennisRacket,racketEnvelope} from './tennis-racket.mjs';
 import {createAthleteModel} from './athlete-model.mjs';
 import {fitYogaArms} from './yoga-proportions.mjs';
+import {fitMobilityArms,orientMobilityHand} from './mobility-proportions.mjs';
 import {createShootingProp,shootingGrip,shootingRearGrip,shootingEnvelope} from './shooting-model.mjs';
 import {rowingGrip} from './equipment-grip.mjs';
 import {setLanguage, registerPoseTranslations, startLocalization, refreshLocalization} from './i18n.mjs?v=21';
@@ -385,7 +386,7 @@ async function initThree() {
                 const meshSide=flipped?1-side:side;
                 tennisHands[meshSide].root.visible=tennis&&!!gripFrame;
                 relaxedHands[meshSide].root.visible=(tennis&&!gripFrame)||!showHands||(motionSample?.captured&&!tennis&&!equipped);
-                relaxedHands[meshSide].root.scale.setScalar(type==='yoga'?1.18:1);
+                relaxedHands[meshSide].root.scale.setScalar(type==='yoga'?1.18:['stretch','gentle'].includes(type)?1.08:1);
                 for(const [sport,models]of Object.entries(equipmentHands))models[meshSide].root.visible=equipped&&type===sport;
                 if(equipped){
                     const frame=motionSample.equipmentHands[side];
@@ -406,7 +407,7 @@ async function initThree() {
                     const direction=coords[w].clone().sub(coords[e]);
                     if(type==='yoga'&&current==='down-dog')direction.copy(coords[w]).sub(coords[10+side]).setY(0);
                     if(type==='yoga'&&current==='tree')direction.copy(coords[0]).add(coords[1]).sub(coords[6]).sub(coords[7]).normalize();
-                    orientHand(THREE,relaxedHands[meshSide],coords[w],direction);
+                    if(!(['stretch','gentle'].includes(type)&&orientMobilityHand(THREE,relaxedHands[meshSide],coords,current,side,flipped)))orientHand(THREE,relaxedHands[meshSide],coords[w],direction);
                     if(type==='yoga'&&current==='tree')relaxedHands[meshSide].root.rotateX((side===0?-1:1)*Math.PI/2);
                     continue;
                 }
@@ -532,7 +533,7 @@ async function initThree() {
             const css=getComputedStyle(document.documentElement),color=key=>css.getPropertyValue(key).trim();
             mat.color.set(liveGroup.visible?'#dde5d6':color('--figure-body'));
             athlete.setSport(selectedPose().type,current);
-            handMaterial.color.set(selectedPose().type==='yoga'?'#c0987b':selectedPose().type==='clay'?'#252b2d':selectedPose().type==='rowing'?'#ae805f':selectedPose().type==='tennis'?'#cba68e':liveGroup.visible?'#ded9ce':'#c9b79f');floor.material.color.set(color('--figure-body'));rings.material.color.set(color('--figure-joint'));
+            handMaterial.color.set(['yoga','stretch','gentle'].includes(selectedPose().type)?'#c0987b':selectedPose().type==='clay'?'#252b2d':selectedPose().type==='rowing'?'#ae805f':selectedPose().type==='tennis'?'#cba68e':liveGroup.visible?'#ded9ce':'#c9b79f');floor.material.color.set(color('--figure-body'));rings.material.color.set(color('--figure-joint'));
         }
         sceneApi = { setGender(){athlete=athletes[modelGender];Object.entries(athletes).forEach(([gender,model])=>{model.root.visible=gender===modelGender;});setModelTheme();}, setTheme:setModelTheme, setWristMode(mode){wristDetail.setMode(mode);}, setPose(id) { target = getReference(id, flipped);resetView();setModelTheme(); }, setLive(values,adjust=[]) {
             liveGroup.visible=!!values;setModelTheme();if(!values)return;
@@ -546,6 +547,7 @@ async function initThree() {
             else neutralCoords.forEach((v,i)=>v.lerp(new THREE.Vector3(...target[i]),1-Math.exp(-10*delta)));
             coords.forEach((v,i)=>v.copy(neutralCoords[i]));
             if(selectedPose().type==='yoga')fitYogaArms(coords,current);
+            if(['stretch','gentle'].includes(selectedPose().type))fitMobilityArms(coords,current,flipped);
             if(selectedPose().type==='rowing'&&!motionSample?.captured){
                 const example=wristExamples[wristMode];
                 for(const i of [4,5])coords[i].y+=example.wristLift;
@@ -557,8 +559,9 @@ async function initThree() {
             const lateral=coords[1].clone().sub(coords[0]).normalize();
             const forward=new THREE.Vector3().crossVectors(lateral,axis).normalize();
             lateral.crossVectors(axis,forward).normalize();
-            head.position.copy(shoulder).addScaledVector(axis,selectedPose().type==='yoga'?.21:.31);
+            head.position.copy(shoulder).addScaledVector(axis,['yoga','stretch','gentle'].includes(selectedPose().type)?.21:.31);
             head.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(lateral,axis,forward));
+            if(selectedPose().type==='stretch'&&current==='triceps'){head.position.addScaledVector(lateral,flipped?-.02:.02);head.rotateZ(flipped?.06:-.06);}
             if(motionSample?.captured){
                 head.position.fromArray(motionSample.headPosition);head.quaternion.fromArray(motionSample.headRotation);
             }
