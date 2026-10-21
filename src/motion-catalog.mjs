@@ -1,4 +1,4 @@
-// User-selected recording intervals, in seconds. Original recordings remain unchanged.
+// User-selected recording intervals plus the original forehand/backhand breakdowns.
 export const motionClips = [
   {
     "id": "tennis-combined-full",
@@ -10,19 +10,55 @@ export const motionClips = [
     "sourceEnd": 8,
     "track": "forehand",
     "phase": "full",
-    "sequence": "tennis"
+    "sequence": "tennis-recordings"
   },
   {
-    "id": "tennis-forehand-backswing",
+    "id": "tennis-forehand-backswing-study",
     "type": "tennis",
-    "name": "Forehand · backswing",
-    "zhName": "正手引拍",
+    "name": "Forehand · backswing · take 3",
+    "zhName": "正手引拍 · 第3组",
     "sourceFile": "wangqiu_03_015.mp4",
     "sourceStart": 0,
     "sourceEnd": 4,
     "track": "forehand",
     "phase": "backswing",
-    "sequence": "tennis"
+    "sequence": "tennis-recordings"
+  },
+  {
+    "id": "tennis-forehand-backswing",
+    "type": "tennis",
+    "name": "Forehand · backswing",
+    "zhName": "正手 · 引拍",
+    "sourceFile": "wangqiu_04_016.mp4",
+    "sourceStart": 1,
+    "sourceEnd": 3.1,
+    "track": "forehand",
+    "phase": "backswing",
+    "sequence": "tennis-forehand"
+  },
+  {
+    "id": "tennis-forehand-drop",
+    "type": "tennis",
+    "name": "Forehand · racket drop",
+    "zhName": "正手 · 降拍",
+    "sourceFile": "wangqiu_04_016.mp4",
+    "sourceStart": 3.1,
+    "sourceEnd": 3.6,
+    "track": "forehand",
+    "phase": "drop",
+    "sequence": "tennis-forehand"
+  },
+  {
+    "id": "tennis-forehand-swing",
+    "type": "tennis",
+    "name": "Forehand · swing",
+    "zhName": "正手 · 挥拍",
+    "sourceFile": "wangqiu_04_016.mp4",
+    "sourceStart": 3.6,
+    "sourceEnd": 6,
+    "track": "forehand",
+    "phase": "swing",
+    "sequence": "tennis-forehand"
   },
   {
     "id": "tennis-forehand-full",
@@ -34,7 +70,43 @@ export const motionClips = [
     "sourceEnd": 6,
     "track": "forehand",
     "phase": "full",
-    "sequence": "tennis"
+    "sequence": "tennis-forehand"
+  },
+  {
+    "id": "tennis-backhand-backswing",
+    "type": "tennis",
+    "name": "Backhand · backswing",
+    "zhName": "反手 · 引拍",
+    "sourceFile": "wangqiu_06_020.mp4",
+    "sourceStart": 0.75,
+    "sourceEnd": 3.9,
+    "track": "backhand",
+    "phase": "backswing",
+    "sequence": "tennis-backhand"
+  },
+  {
+    "id": "tennis-backhand-drop",
+    "type": "tennis",
+    "name": "Backhand · racket drop",
+    "zhName": "反手 · 降拍",
+    "sourceFile": "wangqiu_06_020.mp4",
+    "sourceStart": 3.9,
+    "sourceEnd": 4.4,
+    "track": "backhand",
+    "phase": "drop",
+    "sequence": "tennis-backhand"
+  },
+  {
+    "id": "tennis-backhand-swing",
+    "type": "tennis",
+    "name": "Backhand · swing",
+    "zhName": "反手 · 挥拍",
+    "sourceFile": "wangqiu_06_020.mp4",
+    "sourceStart": 4.4,
+    "sourceEnd": 6.8,
+    "track": "backhand",
+    "phase": "swing",
+    "sequence": "tennis-backhand"
   },
   {
     "id": "tennis-backhand-full",
@@ -46,7 +118,7 @@ export const motionClips = [
     "sourceEnd": 8,
     "track": "backhand",
     "phase": "full",
-    "sequence": "tennis"
+    "sequence": "tennis-backhand"
   },
   {
     "id": "tennis-forehand-ready",
@@ -58,19 +130,19 @@ export const motionClips = [
     "sourceEnd": 5,
     "track": "forehand",
     "phase": "full",
-    "sequence": "tennis"
+    "sequence": "tennis-recordings"
   },
   {
-    "id": "tennis-forehand-drop",
+    "id": "tennis-forehand-drop-study",
     "type": "tennis",
-    "name": "Forehand · racket drop",
-    "zhName": "正手降拍",
+    "name": "Forehand · racket drop · take 12",
+    "zhName": "正手降拍 · 第12组",
     "sourceFile": "wangqiu_12_030.mp4",
     "sourceStart": 1,
     "sourceEnd": 5,
     "track": "forehand",
     "phase": "drop",
-    "sequence": "tennis"
+    "sequence": "tennis-recordings"
   },
   {
     "id": "tennis-backhand-alternate",
@@ -82,7 +154,7 @@ export const motionClips = [
     "sourceEnd": 8,
     "track": "backhand",
     "phase": "full",
-    "sequence": "tennis"
+    "sequence": "tennis-recordings"
   },
   {
     "id": "rowing-arms",

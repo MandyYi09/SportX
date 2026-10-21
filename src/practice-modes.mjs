@@ -24,7 +24,7 @@ export const practicePoses = [
   ...clip, motion:clip.id, area:clip.type==='tennis'?(clip.track==='forehand'?'FOREHAND':'TWO-HANDED BACKHAND'):'MOVEMENT DEMONSTRATION',
   icon:clip.type==='tennis'?'◉':clip.type==='rowing'?'↔':'◌',
   cameraView:clip.type==='rowing'?'side':'front',demoOnly:true,asymmetric:clip.type==='tennis',level:'3D demonstration',
-  groupTitle:practiceModes[clip.type].title,
+  groupTitle:clip.sequence==='tennis-forehand'?'Forehand · four views of one stroke':clip.sequence==='tennis-backhand'?'Backhand · four views of one stroke':practiceModes[clip.type].title,
   description:descriptions[clip.phase][0],cues:[...cues],
   zh:[clip.zhName,descriptions[clip.phase][1],[...cuesZh]],
  })),
