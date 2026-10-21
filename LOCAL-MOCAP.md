@@ -4,7 +4,7 @@ Run `npm run dev` on port 5187. Full source videos and BVH files remain unchange
 
 ## User-selected playback windows — 2026-10-21
 
-`motion-catalog.mjs` is the interval definition; `capture-catalog.mjs` maps each visible study to its corresponding capture. Playback and seeking are bounded, including restart, replay, speed changes and the underlying sampler. The timeline displays source seconds rather than restarting its labels at zero.
+`motion-catalog.mjs` is the interval definition; `capture-catalog.mjs` maps each visible study to its corresponding capture. Playback and seeking are bounded, including restart, replay, speed changes and the underlying sampler. The public timeline displays elapsed time within the trimmed clip, starting at zero. Source filenames, review timecodes and data-length notices are not displayed to users.
 
 | Source | Study | Requested seconds |
 | --- | --- | --- |
@@ -23,13 +23,13 @@ Run `npm run dev` on port 5187. Full source videos and BVH files remain unchange
 | wangqiu_12_030 | 正手降拍 | 1–5 |
 | wangqiu_09_026 | 完整反手挥拍 | 0–8 |
 
-`wangqiu_11_028` is excluded. Previous exclusions `02_013` and `08_024` remain excluded. Independent tennis studies replace the former synthetic subdivision of takes 04/06.
+`wangqiu_11_028` is excluded. Previous exclusions `02_013` and `08_024` remain excluded. Independent tennis studies supplement the original breakdowns of takes 04/06. The original forehand and backhand groups each retain backswing, racket drop, swing and full stroke. Forehand breakdown windows are 1–3.1, 3.1–3.6 and 3.6–6 seconds; backhand windows are 0.75–3.9, 3.9–4.4 and 4.4–6.8 seconds, preserving their previous BVH intervals.
 
-Video and BVH exports have different durations and no shared timecode. Equal-second matching is approximate, not a verified frame-accurate synchronization. The first shooting video's requested end (22 seconds) exceeds its 20.6917-second BVH; actual playback ends at the last measured frame and the website shows that limit. Other requested ranges fit within the available data. No source media is rewritten, retimed or exported.
+Video and BVH exports have different durations and no shared timecode. Equal-second matching is approximate, not a verified frame-accurate synchronization. The first shooting video's requested end (22 seconds) exceeds its 20.6917-second BVH; actual playback ends at the last measured frame without exposing the export mismatch in the user interface. Other requested ranges fit within the available data. No source media is rewritten, retimed or exported.
 
 ## Source skeletons and illustrative geometry
 
-Rowing uses active skeleton 2. Tennis uses skeleton 1, including the equivalent `(2).bvh` export for take 03. Shooting uses `(1).bvh` for take 01 and skeleton 0 for takes 02/03/04. Static alternatives are excluded. All 14 studies use their own source capture.
+Rowing uses active skeleton 2. Tennis uses skeleton 1, including the equivalent `(2).bvh` export for take 03. Shooting uses `(1).bvh` for take 01 and skeleton 0 for takes 02/03/04. Static alternatives are excluded. All 14 independent studies use their own source capture. The six original breakdowns use their corresponding complete forehand/backhand capture.
 
 Body transforms are measured. Source data has no finger joints or independent equipment tracks. Palm frames, racket/gun/oar geometry and grasp attachments are illustrative. Mirror mode reflects the captured geometry and attachments. `npm test` covers independent skeletal reconstruction, bone lengths, equipment, interval matching and real player controls including out-of-range seeking.
 

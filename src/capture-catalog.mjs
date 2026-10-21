@@ -2,12 +2,18 @@ import {motionClips} from './motion-catalog.mjs';
 // Source intervals are shared by UI and sampling. These are approximate video/BVH
 // correspondences; independent exports do not supply a shared timecode.
 const tennisTracks={
+ "tennis-forehand-backswing":"tennis-forehand",
+ "tennis-forehand-drop":"tennis-forehand",
+ "tennis-forehand-swing":"tennis-forehand",
+ "tennis-backhand-backswing":"tennis-backhand",
+ "tennis-backhand-drop":"tennis-backhand",
+ "tennis-backhand-swing":"tennis-backhand",
  "tennis-combined-full": "tennis-combined",
- "tennis-forehand-backswing": "tennis-backswing",
+ "tennis-forehand-backswing-study": "tennis-backswing",
  "tennis-forehand-full": "tennis-forehand",
  "tennis-backhand-full": "tennis-backhand",
  "tennis-forehand-ready": "tennis-ready",
- "tennis-forehand-drop": "tennis-drop",
+ "tennis-forehand-drop-study": "tennis-drop",
  "tennis-backhand-alternate": "tennis-backhand-alternate"
 };
 export const captureWindows=Object.fromEntries(motionClips.map(clip=>[clip.id,{

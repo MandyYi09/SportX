@@ -7,7 +7,7 @@ import { createFocusView } from './focus-view.mjs';
 import { evaluate } from './pose-rules.mjs';
 import { getReference, landmarkIds } from './reference.mjs';
 import { comparePose, projectReference, normalizedLive } from './comparison.mjs';
-import {createMotionPlayer} from './motion-player.mjs?v=28';
+import {createMotionPlayer} from './motion-player.mjs?v=29';
 const $ = id => document.getElementById(id);
 const motionPlayer=createMotionPlayer();
 import { poses } from './exercises.mjs';

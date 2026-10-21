@@ -50,7 +50,6 @@
                 <section id="motion-player" class="motion-player" aria-labelledby="motion-heading" hidden>
                     <div class="motion-heading"><h3 id="motion-heading">3D movement playback</h3><span id="motion-phase" class="motion-phase"></span></div>
                     <div class="motion-controls"><button type="button" id="motion-play" class="primary">Play</button><button type="button" id="motion-restart">Restart</button><label><span>Speed</span><input type="range" id="motion-speed" aria-label="Playback speed" min="0.25" max="1" step="0.01" value="1"><output id="motion-speed-value" for="motion-speed">1×</output></label><output id="motion-time"></output></div>
-                    <p id="motion-range" class="motion-phase"></p><p id="motion-range-note" class="motion-phase" hidden>Playback ends at the last available capture frame.</p>
                     <input id="motion-seek" type="range" min="0" max="1" step="any" value="0" aria-label="Movement timeline">
                 </section>
                 <section id="wrist-study" class="wrist-study" aria-labelledby="wrist-title" hidden>
@@ -115,7 +114,7 @@
             class="primary">Find my space</button>
     </dialog>
     <video id="tracking-video" autoplay playsinline muted aria-hidden="true" tabindex="-1"></video>
-    <script type="module" src="app.js?v=41"></script>
+    <script type="module" src="app.js?v=43"></script>
 </body>
 
 </html>
