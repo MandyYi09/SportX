@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import {loadCapturedMotions,sampleCapturedMotion} from '../src/captured-motion.mjs';
+import {rowingReference,rowingCheckpoints,rowingIds,assessRowing,fitRowingReference} from '../src/rowing-correction.mjs';
+import {rowingMovementArrow} from '../src/rowing-arrows.mjs';
+import {rowingAdjustmentCue,metricLimb,RowingLimbFeedback} from '../src/rowing-feedback.mjs';
+const original=globalThis.fetch;
+globalThis.fetch=async url=>{const b=await fs.readFile(new URL(url));return {ok:true,json:async()=>JSON.parse(b),arrayBuffer:async()=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)}};
+await loadCapturedMotions();globalThis.fetch=original;
+const yaw=Math.PI/2,source=sampleCapturedMotion('rowing-arms',rowingCheckpoints['rowing-arms'][0].time).coords,ref=rowingReference('rowing-arms',0,1,yaw);
+const p=Array.from({length:33},(_,i)=>ref[i]?{x:.5+ref[i].x*.30,y:.8+ref[i].y*.30,visibility:.99}:{x:0,y:0,visibility:0});
+p[14].y-=.20;p[16].y=-.1; // Raised right elbow, wrist outside the top of the frame.
+const a=assessRowing('rowing-arms',p,ref,1000,1000,{source,yaw}),m=a.metrics.find(m=>m.key==='height-1');
+assert.ok(m&&!m.close);assert.equal(m.direction,'down');assert.deepEqual(m.ids,[12,14]);assert.equal(metricLimb(m),'right-arm');assert.equal(rowingAdjustmentCue(m).zh,'右肘放低一点');
+assert.equal(a.missing.find(j=>j.id===16).reason,'outside');assert.ok(!a.missing.some(j=>j.id===12||j.id===14),'Visible shoulder/elbow must not be declared missing');
+assert.ok(!a.metrics.some(m=>m.key==='elbow-1'),'Do not invent the cropped wrist or an elbow angle');
+const ghost=fitRowingReference(ref,a.actual,1000,1000,a.side),arrow=rowingMovementArrow(m,a.actual,ghost,1000,1000);
+assert.equal(arrow.joint,14);assert.equal(arrow.direction,'down');assert.ok(arrow.to.y>arrow.from.y);assert.ok(arrow.path.includes(' Q '));
+assert.equal(rowingMovementArrow({...m,close:true},a.actual,ghost,1000,1000),null);
+const mirrored={...arrow,from:{x:1000-arrow.from.x,y:arrow.from.y},to:{x:1000-arrow.to.x,y:arrow.to.y}};assert.ok(mirrored.to.y>mirrored.from.y,'Mirroring cannot turn a down arrow up');
+const limb=new RowingLimbFeedback();assert.deepEqual(limb.errors([m],true,0),[]);assert.deepEqual(limb.errors([m],true,1100),[]);assert.equal(limb.errors([m],true,1200)[0].key,'height-1');assert.deepEqual(limb.errors([m],false,1300),[],'Lost tracking clears arrow evidence');assert.deepEqual(limb.errors([m],true,1400),[]);
+p[14].visibility=.2;assert.ok(!assessRowing('rowing-arms',p,ref,1000,1000,{source,yaw}).metrics.some(m=>m.key==='height-1'),'An uncertain elbow must not produce a guessed arrow');
+console.log('PASS: frontal raised right arm with cropped wrist, partial height feedback, downward curved arrow, mirror direction, persistence and uncertainty.');

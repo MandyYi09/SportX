@@ -13,7 +13,7 @@ for(const[id,keys]of Object.entries(rowingCheckpoints)){
   assert.ok(a.metrics.length>=4);assert.ok(a.metrics.every(m=>m.delta<1e-5),'Reference must match itself');
   const fitted=fitRowingReference(ref,a.actual,1000,1000,a.side);assert.ok(Object.values(fitted).every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)));
   for(const n of [12,14,16,24,26,28])p[n].visibility=0;
-  const partial=assessRowing(id,p,ref,1000,1000);assert.ok(partial.metrics.some(m=>m.key==='elbow-0'));assert.ok(partial.metrics.every(m=>!m.key.endsWith('-1')));assert.equal(partial.missing[0].en,'right arm');
+  const partial=assessRowing(id,p,ref,1000,1000);assert.ok(partial.metrics.some(m=>m.key==='elbow-0'));assert.ok(partial.metrics.every(m=>!m.key.endsWith('-1')));assert.equal(partial.missing[0].en,'right shoulder');
   p[15].x+=.1;p[15].y-=.1;const changed=assessRowing(id,p,ref,1000,1000);assert.ok(changed.metrics.some(m=>m.delta>5));
  }
  const empty=assessRowing(id,undefined,rowingReference(id),1000,600);assert.equal(empty.metrics.length,0);assert.ok(Object.values(fitRowingReference(rowingReference(id),{},1000,600)).every(p=>p.x>=0&&p.x<=1000&&p.y>=0&&p.y<=600));

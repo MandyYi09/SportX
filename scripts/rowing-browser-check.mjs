@@ -42,6 +42,12 @@ try{
  assert.equal(await run(`document.getElementById('rowing-correction').open`),true,'Ready outside, lock immediately on entry');
  await wait(600);
  assert.equal(await run(`document.querySelectorAll('.rowing-checkpoints button').length`),2);
+ assert.equal(await run(`document.getElementById('rowing-correction').dataset.feedback`),'demonstrate');assert.equal(await run(`Number(document.querySelector('#rowing-correction canvas').dataset.expertOpacity)`),.95);assert.equal(await run(`Number(document.querySelector('#rowing-correction canvas').dataset.errorSegments)`),0);
+ await fs.writeFile('artifacts/rowing-expert-demonstration.png',Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+ for(let i=0;i<60;i++){if(await run(`document.getElementById('rowing-correction').dataset.feedback!=='demonstrate'`))break;await wait(150);}
+ await wait(1000);
+ assert.equal(await run(`document.querySelector('.rowing-result').dataset.state`),'good','Aligned pose must have a concise green confirmation');
+ assert.equal(await run(`document.querySelector('#rowing-correction canvas').dataset.errorSegments`),'0','Initially aligned limbs must be hidden');
  assert.equal(await run(`document.querySelector('#rowing-correction canvas').dataset.expertModel`),'male','Must render the clothed athlete model');assert.ok(await run(`Number(document.querySelector('#rowing-correction canvas').dataset.expertTriangles)>1000`),'Must render a surface mesh');
  const alphaCheck=await run(`(()=>{const c=document.querySelector('#rowing-correction canvas'),slider=document.querySelector('[data-opacity]');slider.value='.2';slider.dispatchEvent(new Event('input'));const low=c.toDataURL();slider.value='.8';slider.dispatchEvent(new Event('input'));const high=c.toDataURL();slider.value='.45';slider.dispatchEvent(new Event('input'));return low!==high;})()`);assert.equal(alphaCheck,true,'Opacity must change the actual model overlay');
 
@@ -55,7 +61,21 @@ try{
  assert.deepEqual(await run(`({yaw:document.querySelector('#rowing-correction canvas').dataset.expertYaw,metrics:document.querySelector('.rowing-metrics').textContent})`),beforeMirror,'Mirror must not alter locked yaw, anatomy or correction values');
  await run(`document.querySelector('#rowing-correction [data-rowing-mirror]').click()`);
  const partial=await run(`({status:document.querySelector('.rowing-status').textContent,metrics:document.querySelector('.rowing-metrics').textContent,active:document.querySelector('#rowing-correction video').srcObject?.active,overflow:document.querySelector('#rowing-correction').scrollWidth>document.querySelector('#rowing-correction').clientWidth})`);
- assert.ok(partial.metrics.includes('Left elbow'),'Partial arm must compare: '+JSON.stringify(partial));assert.ok(partial.status.includes('right arm'));assert.equal(partial.active,true);assert.equal(partial.overflow,false);
+ assert.ok(partial.metrics.includes('Left elbow'),'Partial arm must compare: '+JSON.stringify(partial));assert.ok(partial.status.includes('right wrist'));assert.equal(partial.active,true);assert.equal(partial.overflow,false);
+ // Bend only the visible left elbow without rotating the shoulders or camera.
+ await run(`globalThis.__goodWrist={...__rowPose[15]};__rowPose[15].y-=.16;`);await wait(1800);
+ assert.equal(await run(`document.querySelector('#rowing-correction canvas').dataset.errorSegments`),'2','Only the erroneous arm should be drawn');
+ assert.ok(await run(`document.querySelector('[data-phase-note]').textContent.includes('elbow')`),'Explain the correction in words');
+ await fs.writeFile('artifacts/rowing-correction-error.png',Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+ for(let i=0;i<100;i++){if(await run(`document.getElementById('rowing-correction').dataset.feedback==='demonstrate'`))break;await wait(150);}
+ assert.equal(await run(`document.getElementById('rowing-correction').dataset.feedback`),'demonstrate','Persistent errors must restart the observation interval');assert.equal(await run(`document.querySelector('#rowing-correction canvas').dataset.errorSegments`),'0');
+ await run(`document.querySelectorAll('.rowing-checkpoints button')[1].click()`);assert.equal(await run(`document.querySelector('#rowing-correction canvas').dataset.expertOpacity`),'0.95','Checkpoint changes reset expert emphasis');
+ await run(`document.querySelectorAll('.rowing-checkpoints button')[0].click()`);
+ for(let i=0;i<60;i++){if(await run(`document.getElementById('rowing-correction').dataset.feedback!=='demonstrate'`))break;await wait(150);}
+ await wait(1600);
+ await run(`__rowPose[15]={...__goodWrist};`);await wait(850);
+ assert.ok(await run(`document.querySelector('.rowing-result').textContent.includes('Left arm corrected')`),'A corrected limb needs a brief confirmation');assert.equal(await run(`document.querySelector('#rowing-correction canvas').dataset.resolvedSegments`),'2');
+ await wait(1700);assert.equal(await run(`document.querySelector('#rowing-correction canvas').dataset.resolvedSegments`),'0','Corrected limb skeleton must disappear');assert.equal(await run(`document.querySelector('#rowing-correction canvas').dataset.errorSegments`),'0');
  await run(`__setRowAngle(90)`);await wait(1700);
  assert.equal(await run(`document.getElementById('rowing-correction').dataset.phase`),'moved');
  assert.equal(await run(`document.querySelector('.rowing-metrics').textContent`),'','No scoring from a changed direction');
@@ -65,7 +85,18 @@ try{
  await run(`document.getElementById('start-rowing-correction').click()`);await wait(600);
  assert.equal(await run(`document.querySelector('.rowing-metrics').textContent`),'','End-on arm projection must not be scored');
  await fs.writeFile('artifacts/rowing-correction-front.png',Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
- await run(`document.querySelector('[data-relocate]').click();__setRowAngle(37)`);await wait(1400);await run(`document.getElementById('start-rowing-correction').click()`);await wait(300);
+ await run(`__rowPose[14].visibility=.99;__rowPose[14].y-=.22;__rowPose[16]={x:__rowPose[14].x,y:-.15,visibility:.99};`);
+ await wait(4400);
+ assert.ok(await run(`document.querySelector('[data-phase-note]').textContent.includes('right elbow')`),'A cropped wrist must not suppress the visible right upper arm');
+ assert.equal(await run(`document.querySelector('#rowing-correction .rowing-motion-arrow').dataset.direction`),'down','Raised right arm must get a downward arrow');
+ assert.equal(await run(`document.querySelector('#rowing-correction .rowing-motion-arrow').dataset.joint`),'14');
+ assert.ok(await run(`document.querySelector('.rowing-status').textContent.includes('right wrist (out of frame)')`),'Explain precisely which joint is missing');
+ assert.equal(await run(`document.getElementById('rowing-correction').dataset.phase`),'correcting','Do not demand repositioning for a visible raised arm');
+ const animation=await run(`(()=>{const t=document.querySelector('.rowing-arrow-tip');return {name:getComputedStyle(t).animationName,path:getComputedStyle(t).offsetPath,mirrored:document.querySelector('.rowing-arrows').style.transform};})()`);
+ assert.ok(await run(`document.querySelector('.rowing-arrow-end').getAttribute('transform').startsWith('translate(')`),'The direction arrowhead must remain visible between animation pulses');
+ assert.equal(animation.name,'rowing-arrow-travel');assert.ok(animation.path.startsWith('path('));assert.equal(animation.mirrored,'scaleX(-1)');
+ await fs.writeFile('artifacts/rowing-raised-right-arm.png',Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+ await run(`document.querySelector('[data-relocate]').click();__setRowAngle(37)`);await wait(1400);await run(`document.getElementById('start-rowing-correction').click()`);await wait(4200);
  await fs.writeFile('artifacts/rowing-correction-desktop.png',Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
  await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await wait(400);
  assert.equal(await run(`document.querySelector('#rowing-correction').scrollWidth>document.querySelector('#rowing-correction').clientWidth`),false);
@@ -78,6 +109,6 @@ try{
  await wait(1300);await run(`document.querySelector('[data-gender="female"]').click();document.querySelector('[data-language="zh"]').click();document.getElementById('start-rowing-correction').click()`);assert.equal(await run(`document.querySelector('#rowing-correction canvas').dataset.expertModel`),'female');assert.equal(await run(`document.querySelector('#rowing-correction h2').textContent`),'找到你的姿态');await run(`document.querySelector('#rowing-correction [data-close]').click()`);
  await run(`document.getElementById('camera').click()`);await run(`document.querySelector('[data-filter="tennis"]').click()`);assert.equal(await run(`document.getElementById('three').style.transform`),'','Rowing mirror must not affect other sports');await run(`document.querySelector('[data-filter="rowing"]').click()`);assert.equal(await run(`document.getElementById('three').style.transform`),'scaleX(-1)','Rowing mirror preference must survive movement changes');assert.equal(await run(`document.getElementById('start-rowing-correction').disabled`),true,'Stopping camera clears outside calibration');
  await run(`navigator.mediaDevices.getUserMedia=async()=>{throw Object.assign(new Error('Denied'),{name:'NotAllowedError'})};document.getElementById('camera').click()`);await wait(300);assert.equal(await run(`document.getElementById('rowing-correction').open`),false,'Camera failure must stay outside');
- console.log('PASS: synchronized outside/inside mirror, preserved locked yaw and correction values, sport isolation, outside preparation + main model rotation, immediate locked entry, explicit lock, yaw drift pause, reposition, front-view projection, end-on feedback exclusion, translucent clothed expert model, opacity, model gender, immediate modal, mocked inference + canvas video stream, partial arm feedback, desktop/mobile fit, checkpoints, localization, pending-start cancellation and stream release.');console.log('PARTIAL',partial);assert.equal(errors.length,0,JSON.stringify(errors));
+ console.log('PASS: cropped-wrist right-arm feedback, animated downward arrow, expert emphasis before overlay, expert-first demonstration/retry cycle, concise alignment confirmation, error-only arm overlay, corrected-arm flash then hide, synchronized outside/inside mirror, preserved locked yaw and correction values, sport isolation, outside preparation + main model rotation, immediate locked entry, explicit lock, yaw drift pause, reposition, front-view projection, end-on feedback exclusion, translucent clothed expert model, opacity, model gender, immediate modal, mocked inference + canvas video stream, partial arm feedback, desktop/mobile fit, checkpoints, localization, pending-start cancellation and stream release.');console.log('PARTIAL',partial);assert.equal(errors.length,0,JSON.stringify(errors));
  await send('Browser.close');
 }finally{ws?.close();chrome.kill();}

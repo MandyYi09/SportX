@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node scripts/preview.mjs --port 5187",
     "dev:https": "node scripts/setup-local-https.mjs && node scripts/preview.mjs --https",
-    "test": "node tests/pose-comparison.mjs && node tests/motion-playback.mjs && node tests/captured-motion.mjs && node tests/captured-sports.mjs && node tests/motion-windows.mjs && node tests/athlete-model.mjs && node tests/mobility-model.mjs && node tests/female-model.mjs && node tests/rowing-correction.mjs && node tests/rowing-orientation.mjs && node tests/camera-switch.mjs",
+    "test": "node tests/pose-comparison.mjs && node tests/motion-playback.mjs && node tests/captured-motion.mjs && node tests/captured-sports.mjs && node tests/motion-windows.mjs && node tests/athlete-model.mjs && node tests/mobility-model.mjs && node tests/female-model.mjs && node tests/rowing-correction.mjs && node tests/rowing-orientation.mjs && node tests/rowing-feedback.mjs && node tests/rowing-arrows.mjs && node tests/camera-switch.mjs",
     "build": "node scripts/build.mjs"
   }
 }

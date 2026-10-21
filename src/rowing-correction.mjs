@@ -70,11 +70,29 @@ export function assessRowing(id,p,ref,width,height,{world=null,source=null,yaw=0
   const a=jointAngle(...d.ids.map(i=>actual[i])),target=jointAngle(...d.ids.map(i=>ref[i]));
   return {...d,actual:a,target,delta:Math.abs(a-target),close:Math.abs(a-target)<=d.tolerance};
  }).filter(d=>Number.isFinite(d.delta));
+ // Elevation remains observable when a wrist is cropped or the target arm points
+ // into the lens. It is a screen-space cue, not an inferred elbow bend.
+ const positionMetrics=[];
+ if(source){
+  const ghost=fitRowingReference(ref,actual,width,height,chooseRowingSide(p));
+  const base=[11,23,12,13].find(i=>i!==11&&Math.hypot(ref[i].x-ref[11].x,ref[i].y-ref[11].y)>.09);
+  const scale=base?Math.hypot(ghost[base].x-ghost[11].x,ghost[base].y-ghost[11].y)/Math.hypot(ref[base].x-ref[11].x,ref[base].y-ref[11].y):0;
+  for(const side of [0,1]){
+   const shoulder=11+side,elbow=13+side,a=actual[shoulder],b=actual[elbow];if(!a||!b||!scale)continue;
+   const length=Math.hypot(...source[2+side].map((v,i)=>v-source[side][i]))*scale;
+   const targetOffset=(ref[elbow].y-ref[shoulder].y)*scale,offset=b.y-a.y;
+   const tolerance=Math.max(height*.028,length*.30),difference=offset-targetOffset;
+   positionMetrics.push({key:`height-${side}`,part:side?'Right upper-arm height':'Left upper-arm height',zh:side?'右上臂高度':'左上臂高度',ids:[shoulder,elbow],kind:'position',guidanceOnly:true,actual:offset,target:targetOffset,delta:Math.abs(difference),tolerance,close:Math.abs(difference)<=tolerance,
+    direction:difference<0?'down':'up',joint:elbow,targetPoint:{x:b.x,y:a.y+targetOffset}});
+  }
+ }
+ metrics.push(...positionMetrics);
  const missing=[];
- for(const s of [0,1]){
-  const parts=[{en:s?'right arm':'left arm',zh:s?'右臂':'左臂',ids:[11+s,13+s,15+s]}];
-  if(id!=='rowing-arms')parts.push({en:s?'right leg':'left leg',zh:s?'右腿':'左腿',ids:[23+s,25+s,...(id==='rowing-full'?[27+s]:[])]});
-  for(const part of parts)if(!part.ids.every(i=>actual[i]))missing.push(part);
+ const names={11:['left shoulder','左肩'],12:['right shoulder','右肩'],13:['left elbow','左肘'],14:['right elbow','右肘'],15:['left wrist','左腕'],16:['right wrist','右腕'],23:['left hip','左髋'],24:['right hip','右髋'],25:['left knee','左膝'],26:['right knee','右膝'],27:['left ankle','左踝'],28:['right ankle','右踝']};
+ const required=id==='rowing-arms'?[11,12,13,14,15,16]:id==='rowing-half'?[11,12,13,14,15,16,23,24,25,26]:Object.keys(names).map(Number);
+ for(const i of required)if(!actual[i]){
+  const v=p?.[i],outside=v&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&(v.x<.015||v.x>.985||v.y<.015||v.y>.985);
+  missing.push({id:i,en:names[i][0],zh:names[i][1],reason:outside?'outside':'uncertain'});
  }
  const side=chooseRowingSide(p),s=actual[11+side],e=actual[13+side],hip=actual[23+side];
  const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
