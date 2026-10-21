@@ -1,3 +1,4 @@
+import {capturedDuration} from './captured-motion.mjs';
 import {motionById, motionClips} from './motion-catalog.mjs';
 import {sampleMotion} from './motion-rig.mjs?v=22';
 import {createMotionClock} from './motion-clock.mjs';
@@ -18,7 +19,7 @@ export function createMotionPlayer() {
   const display=`${elapsed.toFixed(2)} / ${duration.toFixed(2)} s`;
   if(display!==lastDisplay){$('motion-time').textContent=display;seek.value=String(elapsed);lastDisplay=display;}
   const phase=motionClips.find(c=>c.track===clip.track&&c.phase!=='full'&&c.sourceStart<=clip.sourceStart+elapsed&&c.sourceEnd>clip.sourceStart+elapsed);
-  const phaseText=clip.type==='tennis'?({backswing:'Backswing',drop:'Racket drop',swing:'Swing & follow-through'}[phase?.phase||'swing']):clip.name;
+  const phaseText=capturedDuration(clip.id)!==null?'实验室动捕 · 120 Hz':clip.type==='tennis'?({backswing:'Backswing',drop:'Racket drop',swing:'Swing & follow-through'}[phase?.phase||'swing']):clip.name;
   if($('motion-phase').dataset.phase!==phaseText){$('motion-phase').dataset.phase=phaseText;$('motion-phase').textContent=phaseText;}
  }
  play.onclick=()=>{if(clock.read().playing)clock.pause();else clock.play();updateDisplay();};
@@ -33,10 +34,10 @@ export function createMotionPlayer() {
  return {
   select(id){
    clip=motionById[id]||null;flipped=false;lastDisplay='';lastPlaying=null;panel.hidden=!clip;
-   clock.select(clip?clip.sourceEnd-clip.sourceStart:0,!document.hidden&&!matchMedia('(prefers-reduced-motion: reduce)').matches);
+   clock.select(clip?(capturedDuration(clip.id)??clip.sourceEnd-clip.sourceStart):0,!document.hidden&&!matchMedia('(prefers-reduced-motion: reduce)').matches);
    if(!clip)return;
    clock.setSpeed(Number($('motion-speed').value));
-   seek.max=String(clip.sourceEnd-clip.sourceStart);seek.value='0';updateDisplay();
+   seek.max=String(clock.read().duration);seek.value='0';updateDisplay();
   },
   mirror(value){flipped=value;},
   sample(){return clip?sampleMotion(clip.id,clock.read().elapsed,flipped):null;},

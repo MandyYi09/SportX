@@ -13,3 +13,6 @@
  .motion-controls{gap:7px}
  #motion-time{flex-basis:100%;margin:4px 0 0}
 }
+
+#three canvas{touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#three canvas.dragging{cursor:grabbing}

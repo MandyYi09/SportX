@@ -17,10 +17,10 @@ function frame(center,x,y,spec){
  return {center,x,y,z,wrist:add(add(center,mul(x,spec.wrist[0])),mul(y,spec.wrist[1])),mirrored:false};
 }
 
-export function rowingAttachment(wrist,side) {
+export function rowingAttachment(wrist,side,pivotOverride=null) {
  // The palm stays above the handle instead of rolling into an underhand fist
  // when the elbow drops below the wrist near the end of the stroke.
- const pivot=[-.13,1,side*.64],direction=[-1,-.4,0];
+ const pivot=pivotOverride||[-.13,1,side*.64],direction=[-1,-.4,0];
  let center=add(wrist,mul(unit(direction),.085));
  // Solve the hand and oar together: the shaft passes through the grasp center
  // and the fixed oarlock, while the model wrist stays attached to the palm.

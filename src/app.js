@@ -1,3 +1,5 @@
+import {loadCapturedMotions} from './captured-motion.mjs';
+try { await loadCapturedMotions(); } catch(error) { document.getElementById('stage-note').hidden=false; document.getElementById('stage-note').textContent='真实动捕加载失败：'+error.message; throw error; }
 import {prepareLandmarks,isSidePose,isUpperPose,requiredLandmarks} from './tracking-view.mjs';
 import { PosePresence } from './pose-presence.mjs';
 import { createFocusView } from './focus-view.mjs';
@@ -22,6 +24,7 @@ let lastPoseFrame=0;
 let flipped = false;
 let wristMode = 'aligned';
 let gripDetail = false;
+let wholeBoat = false;
 let guideUnavailable = false;
 let mobilityMode = 'stretch';
 const activeCategory = () => filter === 'mobility' ? mobilityMode : filter;
@@ -61,10 +64,10 @@ function selectPose(id, keepSide=false) {
  $('pose-tag').textContent=`${categoryLabels[p.type].toUpperCase()} · ${p.area}`;
  $('pose-name').textContent=p.name; $('pose-description').textContent=p.description;
  $('pose-level').textContent=p.level || 'Easy';
- $('angle-label').textContent=p.demoOnly ? '↔ Rotate to explore this step' : isUpperPose(id) ? '↔ Front camera · upper body' : isSidePose(id) ? '↔ Side-on camera · full body' : '↔ Face your camera';
+ $('angle-label').textContent=p.demoOnly ? '↔ Drag to rotate · drag up/down to tilt' : isUpperPose(id) ? '↔ Front camera · upper body' : isSidePose(id) ? '↔ Side-on camera · full body' : '↔ Face your camera';
  $('camera-setup').textContent=p.demoOnly ? 'Place your camera where your body and hands are visible. Live preview only; no technique scoring.' : 'Camera setup: '+framing(id);
  $('stage-note').hidden=!guideUnavailable || !!stream;
- $('reference-label').textContent=p.motion ? '3D movement demonstration' : p.demoOnly ? 'Illustrative 3D movement study' : isUpperPose(id) ? '3D reference · upper-body estimate' : '3D reference · 2D pose estimate';
+ $('reference-label').textContent=p.type==='rowing' ? '真实实验室动捕 · 120 Hz · 手指与桨为约束示意' : p.motion ? '3D movement demonstration' : p.demoOnly ? 'Illustrative 3D movement study' : isUpperPose(id) ? '3D reference · upper-body estimate' : '3D reference · 2D pose estimate';
  $('cues').innerHTML=p.cues.map((c,i)=>`<div class="cue"><span>${i+1}</span>${c}</div>`).join('');
  $('wrist-study').hidden=!p.wristStudy;
  $('cue-heading').textContent=p.demoOnly ? 'Explore this step' : 'Move comfortably';
@@ -193,6 +196,7 @@ setInterval(()=>{if(stream && performance.now()-lastPoseFrame>500){focusView.set
 $('show-camera').onclick=()=>$('camera-dialog').showModal();
 $('close-camera').onclick=()=>$('camera-dialog').close();
 $('switch-side').onclick=()=>{flipped=!flipped;motionPlayer.mirror(flipped);sceneApi?.setPose(current);clearComparison();};
+$('whole-boat').onclick=()=>{wholeBoat=!wholeBoat;$('whole-boat').setAttribute('aria-pressed',String(wholeBoat));};
 $('grip-detail').onclick=()=>{gripDetail=!gripDetail;$('grip-detail').setAttribute('aria-pressed',String(gripDetail));};
 function drawComparison(ctx, p, result, width, height) {
  if(!p)return;
@@ -211,11 +215,11 @@ document.querySelectorAll('[data-language]').forEach(button => button.onclick = 
  document.querySelectorAll('[data-language]').forEach(option => option.setAttribute('aria-pressed', String(option === button)));
  refreshLocalization();
 });
-selectPose('reach');
+filter='rowing';document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('selected',b.dataset.filter==='rowing'));selectPose('rowing-arms');
 startLocalization();
 async function initThree() {
     try {
-        const THREE = await import('https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js'); const host = $('three'); const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(34, 1, .1, 100); camera.position.set(0, 1.65, 6.8); camera.lookAt(0, 1.15, 0); const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.shadowMap.enabled = true; host.append(renderer.domElement); scene.add(new THREE.HemisphereLight(0xffffff, 0x6f7d59, 2.5)); const light = new THREE.DirectionalLight(0xffffff, 3); light.position.set(-3, 5, 4); scene.add(light); const group = new THREE.Group(); scene.add(group); const mat = new THREE.MeshStandardMaterial({ color: 0x6c8058, roughness: .65, metalness: .05 }); const jointmat = new THREE.MeshStandardMaterial({ color: 0xd8ecad, roughness: .55 }); const headmat = new THREE.MeshStandardMaterial({ color: 0x869974, roughness: .55 }); const floor = new THREE.Mesh(new THREE.CircleGeometry(1.4, 80), new THREE.MeshBasicMaterial({ color: 0xafbda1, transparent: true, opacity: .28 })); floor.rotation.x = -Math.PI / 2; floor.position.y = .02; scene.add(floor); const rings = new THREE.Mesh(new THREE.RingGeometry(1.18, 1.19, 100), new THREE.MeshBasicMaterial({ color: 0x96aa81, side: THREE.DoubleSide, transparent: true, opacity: .5 })); rings.rotation.x = -Math.PI / 2; rings.position.y = .03; scene.add(rings);
+        const THREE = await import('./vendor/three.module.js'); const host = $('three'); const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(34, 1, .1, 100); camera.position.set(0, 1.65, 6.8); camera.lookAt(0, 1.15, 0); const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.shadowMap.enabled = true; host.append(renderer.domElement); scene.add(new THREE.HemisphereLight(0xffffff, 0x6f7d59, 2.5)); const light = new THREE.DirectionalLight(0xffffff, 3); light.position.set(-3, 5, 4); scene.add(light); const group = new THREE.Group(); scene.add(group); const mat = new THREE.MeshStandardMaterial({ color: 0x6c8058, roughness: .65, metalness: .05 }); const jointmat = new THREE.MeshStandardMaterial({ color: 0xd8ecad, roughness: .55 }); const headmat = new THREE.MeshStandardMaterial({ color: 0x869974, roughness: .55 }); const floor = new THREE.Mesh(new THREE.CircleGeometry(1.4, 80), new THREE.MeshBasicMaterial({ color: 0xafbda1, transparent: true, opacity: .28 })); floor.rotation.x = -Math.PI / 2; floor.position.y = .02; scene.add(floor); const rings = new THREE.Mesh(new THREE.RingGeometry(1.18, 1.19, 100), new THREE.MeshBasicMaterial({ color: 0x96aa81, side: THREE.DoubleSide, transparent: true, opacity: .5 })); rings.rotation.x = -Math.PI / 2; rings.position.y = .03; scene.add(rings);
         const links = [[0, 1], [0, 2], [2, 4], [1, 3], [3, 5], [0, 6], [1, 7], [6, 7], [6, 8], [8, 10], [7, 9], [9, 11]]; let target = getReference(current, flipped), neutralCoords = target.map(p => new THREE.Vector3(...p)), coords = neutralCoords.map(p=>p.clone()); const joints = coords.map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(.075, 20, 16), jointmat); group.add(m); return m }); const bones = links.map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(.058, .067, 1, 16), mat); group.add(m); return m }); const head = new THREE.Mesh(new THREE.SphereGeometry(.145, 32, 24), headmat); head.scale.y = 1.18; group.add(head); const neck = new THREE.Mesh(new THREE.CylinderGeometry(.055, .07, .18, 16), mat); group.add(neck); const torso = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 20), mat); torso.scale.set(.22, .35, .12); group.add(torso); const liveGroup=new THREE.Group();group.add(liveGroup);liveGroup.visible=false;
         const liveBones=links.map(()=>{const material=new THREE.MeshBasicMaterial({color:0x243950,depthTest:false});const mesh=new THREE.Mesh(new THREE.CylinderGeometry(.022,.022,1,10),material);mesh.renderOrder=3;liveGroup.add(mesh);return mesh;});
         const liveJoints=landmarkIds.map(()=>{const mesh=new THREE.Mesh(new THREE.SphereGeometry(.038,12,10),new THREE.MeshBasicMaterial({color:0x243950,depthTest:false}));mesh.renderOrder=4;liveGroup.add(mesh);return mesh;});
@@ -277,8 +281,8 @@ async function initThree() {
         });
         function updateProps(){
             const type=selectedPose().type;chairGroup.visible=type==='gentle';hull.visible=type==='rowing';racket.visible=type==='tennis';
-            boatSeat.visible=type==='rowing';boatSeat.position.set((coords[6].x+coords[7].x)/2,.56,0);
-            oarlocks.forEach(lock=>lock.root.visible=type==='rowing');
+            boatSeat.visible=type==='rowing';const seatY=motionSample?.captured?(coords[6].y+coords[7].y)/2-.075:.56;boatSeat.position.set((coords[6].x+coords[7].x)/2,seatY,0);hull.position.y=motionSample?.captured?.08:.52;
+            oarlocks.forEach((lock,i)=>{lock.root.visible=type==='rowing';if(motionSample?.captured){lock.root.position.fromArray(motionSample.oars[i].pivot).sub(lock.pivot);}else lock.root.position.set(0,0,0);});
             shotgun.visible=type==='clay';
             [2,4].forEach((index,i)=>{bones[index].geometry=motionSample?tennisForearmGeometry:forearmGeometries[i];});
             for(const hand of hands){
@@ -363,12 +367,30 @@ async function initThree() {
                 racket.position.copy(coords[wrist]);racket.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),coords[wrist].clone().sub(coords[elbow]).normalize());
             }
         }
+        let hostSize={width:host.clientWidth,height:host.clientHeight};
         const savedViews=new Map();
-        let rotation=0;
-        function chooseView(view){savedViews.set(current,view);const native=isSidePose(current)?'side':'front';rotation=view==='three-quarter'?Math.PI/4:view===native?0:Math.PI/2;document.querySelectorAll('[data-model-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.modelView===view)));}
+        let rotation=0,tilt=0,cameraTilt=0,drag=null;
+        const canvas=renderer.domElement;
+        canvas.setAttribute('aria-label','拖拽可360度旋转，上下拖拽调整俯仰视角');
+        canvas.addEventListener('pointerdown',event=>{
+            if(!event.isPrimary||event.button!==0)return;
+            drag={id:event.pointerId,x:event.clientX,y:event.clientY};
+            canvas.setPointerCapture(event.pointerId);canvas.classList.add('dragging');event.preventDefault();
+        });
+        canvas.addEventListener('pointermove',event=>{
+            if(!drag||event.pointerId!==drag.id)return;
+            rotation+=(event.clientX-drag.x)*Math.PI*2/Math.max(hostSize.width,1);
+            tilt=THREE.MathUtils.clamp(tilt+(event.clientY-drag.y)*Math.PI/Math.max(hostSize.height,1),-Math.PI/2+.08,Math.PI/2-.08);
+            drag.x=event.clientX;drag.y=event.clientY;
+            document.querySelectorAll('[data-model-view]').forEach(button=>button.setAttribute('aria-pressed','false'));
+            event.preventDefault();
+        });
+        const endDrag=event=>{if(drag&&event.pointerId===drag.id){drag=null;canvas.classList.remove('dragging');if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);}};
+        for(const name of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(name,endDrag);
+        function chooseView(view){tilt=0;savedViews.set(current,view);const native=isSidePose(current)?'side':'front';rotation=view==='three-quarter'?Math.PI/4:view===native?0:Math.PI/2;document.querySelectorAll('[data-model-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.modelView===view)));}
         document.querySelectorAll('[data-model-view]').forEach(b=>b.onclick=()=>chooseView(b.dataset.modelView));
         $('rotate').onclick=()=>{rotation+=Math.PI/4;document.querySelectorAll('[data-model-view]').forEach(b=>b.setAttribute('aria-pressed','false'));};
-        chooseView(isSidePose(current)?'side':'front');
+        chooseView(['rowing','clay'].includes(selectedPose().type)?'three-quarter':isSidePose(current)?'side':'front');
         function setModelTheme(){
             const css=getComputedStyle(document.documentElement),color=key=>css.getPropertyValue(key).trim();
             mat.color.set(liveGroup.visible?'#dde5d6':color('--figure-body'));
@@ -380,13 +402,14 @@ async function initThree() {
             liveGroup.visible=!!values;setModelTheme();if(!values)return;
             const pts=values.map(v=>v?new THREE.Vector3(...v):null);liveJoints.forEach((m,i)=>{m.visible=!!pts[i];if(pts[i])m.position.copy(pts[i]);});
             links.forEach(([a,b],i)=>{const m=liveBones[i];m.visible=!!pts[a]&&!!pts[b];if(!m.visible)return;const d=pts[b].clone().sub(pts[a]);m.position.copy(pts[a]).add(pts[b]).multiplyScalar(.5);m.scale.y=d.length();m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());m.material.color.set(adjust.includes(landmarkIds[a])||adjust.includes(landmarkIds[b])?0x854316:0x243950);});
-        } }; setModelTheme(); new ResizeObserver(() => { const { width, height } = host.getBoundingClientRect(); if (!width || !height) return; renderer.setSize(width, height); camera.aspect = width / height; camera.position.z = Math.max(6.8, 4.6 / camera.aspect); camera.updateProjectionMatrix(); }).observe(host);
-        renderer.setAnimationLoop(() => { if (document.hidden || host.hidden) return;
+        } }; setModelTheme(); new ResizeObserver(() => { const { width, height } = host.getBoundingClientRect();hostSize={width,height}; if (!width || !height) return; renderer.setSize(width, height); camera.aspect = width / height; camera.position.z = Math.max(6.8, 4.6 / camera.aspect); camera.updateProjectionMatrix(); }).observe(host);
+        let previousRender=performance.now();
+        renderer.setAnimationLoop(() => {const now=performance.now(),delta=Math.min(.1,(now-previousRender)/1000);previousRender=now;if (document.hidden || host.hidden) return;
             motionSample=motionPlayer.sample();
             if(motionSample)neutralCoords.forEach((v,i)=>v.fromArray(motionSample.coords[i]));
-            else neutralCoords.forEach((v,i)=>v.lerp(new THREE.Vector3(...target[i]),.08));
+            else neutralCoords.forEach((v,i)=>v.lerp(new THREE.Vector3(...target[i]),1-Math.exp(-10*delta)));
             coords.forEach((v,i)=>v.copy(neutralCoords[i]));
-            if(selectedPose().type==='rowing'){
+            if(selectedPose().type==='rowing'&&!motionSample?.captured){
                 const example=wristExamples[wristMode];
                 for(const i of [4,5])coords[i].y+=example.wristLift;
                 for(const i of [2,3])coords[i].y+=example.elbowLift;
@@ -396,15 +419,20 @@ async function initThree() {
             lateral.crossVectors(axis,forward).normalize();
             const bodyRotation=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(lateral,axis,forward));
             torso.quaternion.copy(bodyRotation);head.quaternion.copy(bodyRotation);neck.quaternion.copy(bodyRotation);
+            if(motionSample?.captured){
+                head.position.fromArray(motionSample.headPosition);neck.position.fromArray(motionSample.neckPosition);head.quaternion.fromArray(motionSample.headRotation);neck.quaternion.copy(head.quaternion);torso.quaternion.fromArray(motionSample.torsoRotation);
+                torso.scale.set(coords[0].distanceTo(coords[1])*.52,shoulder.distanceTo(hip)*.47,.10);
+                joints.forEach(m=>m.scale.setScalar(.68));
+            }else{torso.scale.set(.22,.35,.12);joints.forEach(m=>m.scale.setScalar(1));}
             pelvis.visible=!!motionSample;pelvis.position.copy(hip);
             const hipLateral=coords[7].clone().sub(coords[6]).normalize(),hipForward=new THREE.Vector3().crossVectors(hipLateral,new THREE.Vector3(0,1,0)).normalize();
-            pelvis.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(hipLateral,new THREE.Vector3(0,1,0),hipForward));
-            feet.forEach((foot,i)=>{foot.visible=!!motionSample;foot.position.copy(coords[10+i]).addScaledVector(hipForward,.06);foot.position.y-=.03;foot.quaternion.copy(pelvis.quaternion);});
-            group.rotation.y += (rotation - group.rotation.y) * .06;updateProps();
+            pelvis.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(hipLateral,new THREE.Vector3(0,1,0),hipForward));if(motionSample?.captured)pelvis.quaternion.fromArray(motionSample.pelvisRotation);
+            feet.forEach((foot,i)=>{foot.visible=!!motionSample;foot.position.copy(coords[10+i]).addScaledVector(hipForward,.06);foot.position.y-=.03;foot.quaternion.copy(pelvis.quaternion);if(motionSample?.toePositions){const toe=new THREE.Vector3(...motionSample.toePositions[i]);foot.position.copy(coords[10+i]).lerp(toe,.5);const direction=toe.sub(coords[10+i]).normalize();foot.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),direction);}});
+            group.rotation.y += (rotation - group.rotation.y) * (drag?1:1-Math.exp(-8*delta));cameraTilt+=(tilt-cameraTilt)*(drag?1:1-Math.exp(-8*delta));updateProps();
             let boundPoints=[...coords,head.position.clone().add(new THREE.Vector3(0,.2,0))];
             if(shotgun.visible)for(const x of [-.52,1.30])for(const y of [-.15,.13])boundPoints.push(new THREE.Vector3(x,y,0).multiply(shotgun.scale).applyQuaternion(shotgun.quaternion).add(shotgun.position));
             if(racket.visible)boundPoints.push(new THREE.Vector3(0,.75,0).applyQuaternion(racket.quaternion).add(racket.position));
-            if(hull.visible)for(const item of sculls)for(const sign of [-1,1])boundPoints.push(item.end.clone().add(new THREE.Vector3(.24*sign,.06*sign,.13*sign)));
+            if(hull.visible&&(!motionSample?.captured||wholeBoat))for(const item of sculls)for(const sign of [-1,1])boundPoints.push(item.end.clone().add(new THREE.Vector3(.24*sign,.06*sign,.13*sign)));
             const detailHands=motionSample?.tennisHands||motionSample?.equipmentHands;
             if(gripDetail&&detailHands){
                 boundPoints=[];
@@ -414,17 +442,21 @@ async function initThree() {
                     boundPoints.push(coords[4+side],coords[4+side].clone().lerp(coords[2+side],.45),center.clone().addScaledVector(axis,.09),center.clone().addScaledVector(axis,-.09));
                 });
             }
-            const minY=Math.min(...boundPoints.map(v=>v.y))-.12,maxY=Math.max(...boundPoints.map(v=>v.y))+.12;
-            const projected=boundPoints.map(v=>v.x*Math.cos(group.rotation.y)+v.z*Math.sin(group.rotation.y));
-            const minX=Math.min(...projected)-.18,maxX=Math.max(...projected)+.18;
-            const full=$('stage').classList.contains('focus-active');
-            const area=host.getBoundingClientRect();
-            const usableHeight=Math.max(.3,1-(full?230:190)/Math.max(area.height,1));
-            const usableWidth=full?.88:.85;
-            const nearDepth=Math.max(0,...boundPoints.map(v=>-v.x*Math.sin(group.rotation.y)+v.z*Math.cos(group.rotation.y)));
-            const distance=Math.max((maxY-minY)/(2*Math.tan(34*Math.PI/360)*usableHeight),(maxX-minX)/(2*Math.tan(34*Math.PI/360)*camera.aspect*usableWidth))+nearDepth+.12;
-            const centerY=(minY+maxY)/2;
-            camera.position.lerp(new THREE.Vector3((minX+maxX)/2,centerY,distance),.12);camera.lookAt(camera.position.x,centerY,0);
+            // Fit in camera space so changing elevation cannot clip the head or hands.
+            const yaw=group.rotation.y,cy=Math.cos(yaw),sy=Math.sin(yaw);
+            const world=boundPoints.map(p=>new THREE.Vector3(p.x*cy+p.z*sy,p.y,-p.x*sy+p.z*cy));
+            const bounds=new THREE.Box3().setFromPoints(world).expandByScalar(.16),center=bounds.getCenter(new THREE.Vector3());
+            const full=$('stage').classList.contains('focus-active'),area=hostSize;
+            const usableHeight=Math.max(.3,1-(full?230:190)/Math.max(area.height,1)),usableWidth=full?.88:.85;
+            const ct=Math.cos(cameraTilt),st=Math.sin(cameraTilt),tan=Math.tan(34*Math.PI/360);
+            let distance=.3;
+            for(const point of [bounds.min,bounds.max,...world]){
+                const x=point.x-center.x,y=point.y-center.y,z=point.z-center.z;
+                const screenY=y*ct-z*st,depth=y*st+z*ct;
+                distance=Math.max(distance,depth+Math.abs(x)/(tan*camera.aspect*usableWidth),depth+Math.abs(screenY)/(tan*usableHeight));
+            }
+            const desired=center.clone().add(new THREE.Vector3(0,st,ct).multiplyScalar(distance+.12));
+            camera.position.lerp(desired,drag?1:1-Math.exp(-8*delta));camera.lookAt(center);
             renderer.render(scene, camera) });
     } catch (e) { guideUnavailable = true; $('stage-note').hidden = false; $('stage-note').innerHTML = '3D guide could not load.<small>You can still follow the written cues or enable your camera.</small>'; $('rotate').disabled = true; }
 }

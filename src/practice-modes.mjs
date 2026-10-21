@@ -6,7 +6,7 @@ export const categoryLabels = {
 };
 export const practiceModes = {
  clay: {title:'Clay shooting · movement demonstrations', note:'Explore the complete movement, ready hold, raise to cheek and lowering as separate 3D demonstrations.'},
- rowing: {title:'Sculling · three stroke studies', note:'Explore arms-only, half stroke and full stroke as separate 3D demonstrations.'},
+ rowing: {title:'Sculling · three stroke studies', note:'出手划、1/2 划、全桨划使用实验室 BVH 实测骨架（120 Hz）。慢放保留原始动作顺序；手指、船与桨为几何约束示意，待教练确认。'},
  tennis: {title:'Tennis · forehand & backhand', note:'Forehand and backhand each include backswing, racket drop, swing and a complete stroke. Select any movement to play its 3D demonstration.'},
  gentle: {title:'Gentle movement · seated upper body', note:'A seated starting point for older adults. Use a stable chair without wheels and keep your feet supported. Choose a comfortable range; the camera compares upper-body shape only.',source:'https://www.nhs.uk/live-well/exercise/sitting-exercises/',sourceLabel:'Seated exercise guidance · NHS'},
 };

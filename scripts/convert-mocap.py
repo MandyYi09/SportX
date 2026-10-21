@@ -1,0 +1,54 @@
+"""Convert supplied 120 Hz BVH into lossless float32 local rotations. No fitting or smoothing."""
+from pathlib import Path
+import json,re,math,struct,hashlib
+ROOT=Path(__file__).resolve().parents[1]
+OUT=ROOT/'src/assets/mocap';OUT.mkdir(parents=True,exist_ok=True)
+def multiply(a,b):
+ x,y,z,w=a;X,Y,Z,W=b
+ return [w*X+x*W+y*Z-z*Y,w*Y-x*Z+y*W+z*X,w*Z+x*Y-y*X+z*W,w*W-x*X-y*Y-z*Z]
+def rotate(q,v):
+ x,y,z,w=q;X,Y,Z=v;tx=2*(y*Z-z*Y);ty=2*(z*X-x*Z);tz=2*(x*Y-y*X)
+ return [X+w*tx+y*tz-z*ty,Y+w*ty+z*tx-x*tz,Z+w*tz+x*ty-y*tx]
+def forward(meta,row):
+ ps=[];qs=[]
+ for i,off in enumerate(meta['offsets']):
+  p=meta['parents'][i];q=row[3+i*4:7+i*4]
+  if p<0:ps.append(row[:3]);qs.append(q)
+  else:ps.append([a+b for a,b in zip(ps[p],rotate(qs[p],off))]);qs.append(multiply(qs[p],q))
+ return dict(zip(meta['names'],ps))
+index={}
+for key,pattern in [('rowing-arms','huachuan_01*skeleton_2.bvh'),('rowing-half','huachuan_02*skeleton_2.bvh'),('rowing-full','huachuan_03*skeleton_2.bvh')]:
+ path=next((ROOT/'source').rglob(pattern));text=path.read_text();header,motion=text.split('MOTION');lines=motion.strip().splitlines();dt=float(lines[1].split(':')[1]);rows=[[float(v) for v in line.split()] for line in lines[2:]]
+ names=[];parents=[];offsets=[];channels=[];stack=[];pending=None
+ for line in header.splitlines():
+  s=line.strip()
+  if s.startswith(('ROOT ','JOINT ')):
+   pending=len(names);names.append(s.split()[1]);parents.append(stack[-1] if stack else -1);offsets.append(None);channels.append(None)
+  elif s.startswith('End Site'):pending=-1
+  elif s=='{':stack.append(pending)
+  elif s=='}':stack.pop()
+  elif s.startswith('OFFSET ') and stack[-1]>=0:offsets[stack[-1]]=[float(v)*.01 for v in s.split()[1:]]
+  elif s.startswith('CHANNELS '):channels[stack[-1]]=s.split()[2:]
+ assert len(rows)==int(lines[0].split(':')[1]);assert all(len(r)==sum(map(len,channels)) for r in rows)
+ packed=[]
+ for row in rows[1:]:
+  cursor=0;position=[0,0,0];rotations=[]
+  for i,chans in enumerate(channels):
+   q=[0,0,0,1]
+   for channel,value in zip(chans,row[cursor:cursor+len(chans)]):
+    axis='XYZ'.index(channel[0])
+    if channel.endswith('position'):position[axis]=value*.01
+    else:
+     half=math.radians(value)/2;axisq=[0,0,0,math.cos(half)];axisq[axis]=math.sin(half);q=multiply(q,axisq)
+   cursor+=len(chans);rotations.extend(q)
+  packed.append(position+rotations)
+ meta={'id':key,'source':path.name,'sourceSha256':hashlib.sha256(path.read_bytes()).hexdigest(),'sourceFrames':len(rows),'removedFrames':1,'frameTime':dt,'frames':len(packed),'duration':(len(packed)-1)*dt,'stride':len(packed[0]),'names':names,'parents':parents,'offsets':offsets,'binary':key+'.bin','units':'metres'}
+ # One rigid global transform preserves source proportions, rotations and root motion.
+ first=forward(meta,packed[0]);hip=first['Hips'];feet=[(a+b)/2 for a,b in zip(first['LeftFoot'],first['RightFoot'])];direction=[feet[0]-hip[0],0,feet[2]-hip[2]]
+ yaw=math.atan2(-direction[2],-direction[0]);q=[0,math.sin(yaw/2),0,math.cos(yaw/2)];rotHip=rotate(q,hip)
+ lowest=min(forward(meta,row)[name][1] for row in packed for name in ['LeftFoot','RightFoot','LeftToeBase','RightToeBase'])
+ meta['alignment']={'yaw':yaw,'translation':[.24-rotHip[0],.17-lowest,-rotHip[2]]}
+ (OUT/(key+'.bin')).write_bytes(struct.pack('<'+'f'*(len(packed)*meta['stride']),*(v for row in packed for v in row)))
+ (OUT/(key+'.json')).write_text(json.dumps(meta,ensure_ascii=False),encoding='utf-8');index[key]=meta
+ print(key,'frames',meta['frames'],'duration',round(meta['duration'],3),'first joints',first['LeftHand'],first['RightHand'],'feet',feet,'align',meta['alignment'])
+(OUT/'index.json').write_text(json.dumps(index,ensure_ascii=False),encoding='utf-8')
