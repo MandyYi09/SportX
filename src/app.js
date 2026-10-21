@@ -21,7 +21,7 @@ import {fitYogaArms} from './yoga-proportions.mjs';
 import {fitMobilityArms,orientMobilityHand} from './mobility-proportions.mjs';
 import {createShootingProp,shootingGrip,shootingRearGrip,shootingEnvelope} from './shooting-model.mjs';
 import {rowingGrip} from './equipment-grip.mjs';
-import {getLanguage, setLanguage, registerPoseTranslations, startLocalization, refreshLocalization} from './i18n.mjs?v=21';
+import {getLanguage, setLanguage, registerPoseTranslations, startLocalization, refreshLocalization} from './i18n.mjs?v=49';
 const selectedPose = () => poses.find(p => p.id === current);
 const rowingCorrection=createRowingCorrection({getLanguage,getGender:()=>modelGender,onDirection:yaw=>sceneApi?.setTrackingYaw(yaw),beforeOpen:()=>{motionPlayer.pause();}});
 const correctionButton=document.createElement('button');correctionButton.className='primary';correctionButton.id='start-rowing-correction';correctionButton.textContent='Start correction';correctionButton.disabled=true;correctionButton.onclick=()=>rowingCorrection.open(current);$('camera').before(correctionButton);
@@ -90,7 +90,7 @@ function drawCards() {
  $('movement-count').textContent=`${shown.length} movements`;
  $('category-intro').hidden=!practiceModes[category];
  $('category-intro').textContent=practiceModes[category]?.title || '';
- $('poses').innerHTML=shown.map(p => `<button class="pose-card ${p.id === current ? 'active' : ''}" data-pose="${p.id}" aria-pressed="${p.id === current}"><span class="pose-icon" aria-hidden="true">${p.icon}</span><span><strong>${p.name}</strong><small>${categoryLabels[p.type]} · ${p.demoOnly ? 'Demo' : (p.hold || 30)+' sec'}</small></span><span class="arrow">↗</span></button>`).join('');
+ $('poses').innerHTML=shown.map(p => `<button class="pose-card ${p.id === current ? 'active' : ''}" data-pose="${p.id}" aria-pressed="${p.id === current}"><span class="pose-icon" aria-hidden="true">${p.icon}</span><span><strong>${p.name}</strong><small>${categoryLabels[p.type]} · ${p.demoOnly ? 'Demo' : (p.hold || 30)+' sec'}</small></span><span class="arrow" aria-hidden="true">↗</span></button>`).join('');
  document.querySelectorAll('[data-pose]').forEach(b => b.onclick=() => selectPose(b.dataset.pose));
  $('poses').scrollLeft=listScroll;
  if(matchMedia('(max-width: 700px)').matches){
@@ -106,10 +106,11 @@ function selectPose(id, keepSide=false) {
  viewZoom=1;
  document.querySelector('.studio').classList.toggle('motion-study',!!p.motion);
  document.querySelector('.workspace').classList.toggle('motion-workspace',!!p.motion);
- $('hold-duration').textContent=p.demoOnly ? 'Step by step' : remaining+' sec';
- $('duration-label').textContent=p.demoOnly ? 'At your own pace' : p.type==='gentle' ? 'Optional practice time' : 'Suggested hold';
- $('pose-tag').textContent=`${categoryLabels[p.type].toUpperCase()} · ${p.area}`;
- $('pose-name').textContent=p.name; $('pose-description').textContent=p.description;
+ $('pose-facts').hidden=!!p.demoOnly;
+ $('hold-duration').textContent=remaining+' sec';
+ $('duration-label').textContent=p.type==='gentle' ? 'Practice time' : 'Suggested hold';
+ $('pose-tag').textContent=p.demoOnly ? categoryLabels[p.type] : `${categoryLabels[p.type]} · ${p.area}`;
+ $('pose-name').textContent=p.name; $('pose-description').textContent=p.description; $('pose-description').hidden=!!p.demoOnly;
  $('pose-level').textContent=p.level || 'Easy';
  $('angle-label').textContent=p.demoOnly ? '↔ Drag to rotate · scroll to zoom' : isUpperPose(id) ? '↔ Front camera · upper body' : isSidePose(id) ? '↔ Side-on camera · full body' : '↔ Face your camera';
  $('camera-setup').textContent=p.demoOnly ? 'Place your camera where your body and hands are visible.' : 'Camera setup: '+framing(id);
@@ -117,26 +118,26 @@ function selectPose(id, keepSide=false) {
  $('reference-label').textContent=p.motion ? 'Expert demonstration' : p.demoOnly ? 'Illustrative 3D movement study' : isUpperPose(id) ? '3D reference · upper body' : '3D pose reference';
  $('cues').innerHTML=p.cues.map((c,i)=>`<div class="cue"><span>${i+1}</span>${c}</div>`).join('');
  $('wrist-study').hidden=!p.wristStudy;
- $('cue-heading').textContent=p.demoOnly ? 'Explore this step' : 'Movement cues';
- const mode=practiceModes[p.type]; $('practice-note').hidden=!mode?.note;
+ $('cue-heading').textContent=p.demoOnly ? 'Playback controls' : 'Movement cues';
+ const mode=practiceModes[p.type]; $('practice-note').hidden=!mode?.note || !!p.demoOnly; $('practice-note').open=false;
  $('practice-note-text').textContent=mode?.note || ''; $('practice-source').textContent=mode?.sourceLabel || ''; $('practice-source').hidden=!mode?.source; if(mode?.source)$('practice-source').href=mode.source;
  const sequence=sequenceFor(id); $('sequence').hidden=!sequence.length;
  $('sequence-title').textContent=p.groupTitle || mode?.title || ''; $('sequence-count').textContent=sequence.length ? `${sequence.findIndex(x=>x.id===id)+1} / ${sequence.length}` : '';
  $('sequence-steps').replaceChildren();
  sequence.forEach((step,i)=>{const b=document.createElement('button'); b.textContent=`${i+1}. ${step.name}`;b.setAttribute('aria-pressed',String(step.id===id));b.onclick=()=>{selectPose(step.id,true);$('sequence-steps').children[i].focus({preventScroll:true});};$('sequence-steps').append(b);});
  $('timer-panel').hidden=$('timer-note').hidden=!!p.demoOnly;
- $('timer-label').textContent=p.type==='gentle' ? 'MOVEMENT TIMER' : 'HOLD TIMER';
+ $('timer-label').textContent=p.type==='gentle' ? 'PRACTICE TIMER' : 'HOLD TIMER';
  $('timer-note').textContent='Start or pause the timer.';
  $('camera').disabled=starting; setCameraButton(stream ? 'Stop camera' : '▣ Enable camera');
- $('camera-title').textContent=p.demoOnly ? 'Practice with a live preview.' : 'Your space. Your pace.';
+ $('camera-title').textContent='Camera preview';
  $('camera-sub').textContent=p.demoOnly ? stream ? 'Your camera is beside the 3D guide.' : 'Enable camera to see yourself beside the 3D guide.' : stream ? framing(id) : 'Enable your camera to compare your pose.';
  $('show-camera').hidden=document.querySelector('.comparison-panel').hidden=!!p.demoOnly;
  motionPlayer.select(id);motionPlayer.mirror(flipped);
  drawCards();sceneApi?.setPose(id);rowingCorrection.setPose(id,stream);setWristMode(wristMode); $('switch-side').hidden=!(p.asymmetric || ['side','warrior'].includes(id));
  clearComparison();
- setFeedback({state:'unknown',title:p.demoOnly ? stream ? 'Live preview' : 'Movement study' : stream ? 'Find your starting position' : 'Ready when you are',text:p.demoOnly ? stream ? 'Compare your movement with the 3D demonstration.' : 'Select a numbered step, then enable the camera to compare your movement.' : stream ? framing(id) : 'You can follow the guide without a camera, or enable it for body-shape feedback.'});
+ setFeedback({state:'unknown',title:p.demoOnly ? stream ? 'Live preview' : 'Movement study' : stream ? 'Find your starting position' : 'Camera off',text:p.demoOnly ? stream ? 'Compare your movement with the 3D demonstration.' : 'Select a numbered step, then enable the camera to compare your movement.' : stream ? framing(id) : 'You can follow the guide without a camera, or enable it for body-shape feedback.'});
 }
-function setFeedback(r) { $('focus-feedback').textContent=r.title+' — '+r.text; document.querySelector('.feedback').className = `feedback ${r.state}`; $('feedback-title').textContent = r.title; $('feedback-text').textContent = r.text; $('feedback-icon').textContent = r.state === 'good' ? '✓' : r.state === 'warning' ? '↗' : '◌'; }
+function setFeedback(r) { document.querySelector('.feedback').hidden=!!selectedPose().demoOnly && !stream; $('focus-feedback').textContent=r.title+' — '+r.text; document.querySelector('.feedback').className = `feedback ${r.state}`; $('feedback-title').textContent = r.title; $('feedback-text').textContent = r.text; $('feedback-icon').textContent = r.state === 'good' ? '✓' : r.state === 'warning' ? '↗' : '◌'; }
 document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => {
  filter=b.dataset.filter;
  document.querySelectorAll('[data-filter]').forEach(x=>{x.classList.toggle('selected',x===b);x.setAttribute('aria-pressed',String(x===b));});
@@ -170,7 +171,7 @@ function stopCamera({keepDialogOpen=false}={}) {
  $('stage').classList.remove('live'); $('show-camera').disabled = true;
  if(!keepDialogOpen)$('camera-dialog').close();
  clearComparison(); $('mode').textContent = '○   REFERENCE PREVIEW'; setCameraButton('▣   Enable camera');
- $('camera-title').textContent = selectedPose().demoOnly ? 'Practice with a live preview.' : 'Your space. Your pace.';
+ $('camera-title').textContent = 'Camera preview';
  $('camera-sub').textContent = selectedPose().demoOnly ? 'Enable camera to see yourself beside the 3D guide.' : 'Enable your camera to get live alignment cues.';
  stopTimer(); setFeedback({state:'unknown',title:'Camera is off',text:'Your reference guide is ready. You can restart whenever you like.'});
 }
@@ -211,7 +212,7 @@ $('camera').onclick = async () => {
             $('demo-video').srcObject = stream; await $('demo-video').play();
             if (!stream || !selectedPose().demoOnly) { stopCamera(); return; }
             $('demo-camera').hidden = false; $('stage-layout').classList.add('with-preview');
-            setCameraButton('Stop camera'); $('camera-title').textContent = 'Practice with a live preview.';
+            setCameraButton('Stop camera'); $('camera-title').textContent = 'Camera preview';
             $('camera-sub').textContent = 'Your camera is beside the 3D guide.';
             setFeedback({state:'unknown',title:'Live preview',text:'Compare your movement with the 3D demonstration.'});
             if(selectedPose().type==='rowing'){$('demo-video').style.transform='none';void rowingCorrection.prepare(current,stream);$('camera-sub').textContent='The expert follows your horizontal direction.';}
@@ -226,7 +227,7 @@ $('camera').onclick = async () => {
         if (!stream || selectedPose().demoOnly) { stopCamera(); return; }
         $('video').hidden = $('overlay').hidden = false; $('three').hidden = false; $('stage-note').hidden = true; $('rotate').hidden = false;
         $('stage').classList.add('live'); $('show-camera').disabled = false; $('mode').textContent = '●   LIVE · ON DEVICE';
-        setCameraButton('Stop camera'); $('camera-title').textContent = 'Camera ready.'; $('camera-sub').textContent = framing(current);
+        setCameraButton('Stop camera'); $('camera-title').textContent = 'Camera on'; $('camera-sub').textContent = framing(current);
         lastVideo = -1; const token = ++runId; requestAnimationFrame(t => track(t, token));
     } catch (e) {
         if(switchingCamera)releaseCameraStream();
@@ -367,6 +368,11 @@ async function initThree() {
         const athletes=Object.fromEntries(['male','female'].map(gender=>{const model=createAthleteModel(THREE,{body:mat,skin:skinMaterial,gender});group.add(model.root);model.root.visible=gender===modelGender;return [gender,model];}));
         let athlete=athletes[modelGender];
         const boatSeat=new THREE.Mesh(new THREE.BoxGeometry(.25,.055,.35),propMaterial);group.add(boatSeat);
+        const seatRails=new THREE.Group();group.add(seatRails);
+        for(const z of [-.12,.12]){
+            const rail=new THREE.Mesh(new THREE.BoxGeometry(.78,.025,.025),propMaterial);
+            rail.position.set(.04,.515,z);seatRails.add(rail);
+        }
         const oarlocks=sculls.map(item=>{
             const root=new THREE.Group();group.add(root);
             const pivot=new THREE.Vector3(-.13,1.0,item.side*.64);
@@ -379,7 +385,7 @@ async function initThree() {
         });
         function updateProps(){
             const type=selectedPose().type;chairGroup.visible=type==='gentle';hull.visible=type==='rowing';racket.visible=type==='tennis';
-            boatSeat.visible=type==='rowing';const seatY=motionSample?.captured?(coords[6].y+coords[7].y)/2-.075:.56;boatSeat.position.set((coords[6].x+coords[7].x)/2,seatY,0);hull.position.y=motionSample?.captured?.08:.52;
+            boatSeat.visible=seatRails.visible=type==='rowing';boatSeat.position.copy(coords[6]).add(coords[7]).multiplyScalar(.5);boatSeat.position.y-=motionSample?.captured?.075:.09;seatRails.position.y=boatSeat.position.y-.045-.515;hull.position.y=motionSample?.captured?.08:.52;
             oarlocks.forEach((lock,i)=>{lock.root.visible=type==='rowing';if(type==='rowing'&&motionSample?.captured){lock.root.position.fromArray(motionSample.oars[i].pivot).sub(lock.pivot);}else lock.root.position.set(0,0,0);});
             shotgun.visible=type==='clay';
             for(const hand of hands){
