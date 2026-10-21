@@ -81,20 +81,10 @@ for(const id of Object.keys(captureWindows).filter(id=>!id.startsWith('rowing'))
  assert.deepEqual(sampleMotion(id,-1).coords,initial.coords);assert.deepEqual(sampleMotion(id,duration+1).coords,sampleMotion(id,duration).coords);
  console.log(id,JSON.stringify({duration,maxStepAt120Hz:maxStep,source:initial.source}));
 }
-for(const name of ['forehand','backhand']){
- const full=`tennis-${name}-full`,fullWindow=capturedWindow(full),slices=['backswing','drop','swing'].map(p=>`tennis-${name}-${p}`);
- near(capturedWindow(slices[0]).start,fullWindow.start);near(capturedWindow(slices[2]).end,fullWindow.end);
- for(let i=1;i<slices.length;i++)near(capturedWindow(slices[i-1]).end,capturedWindow(slices[i]).start);
- for(const slice of slices)for(let time=0;time<capturedDuration(slice);time+=.037){
-  const a=sampleMotion(slice,time),b=sampleMotion(full,capturedWindow(slice).start-fullWindow.start+time);
-  a.coords.forEach((p,i)=>near(distance(p,b.coords[i]),0));near(distance(a.racketPosition,b.racketPosition),0);
- }
-}
-const fourth=metadata.find(m=>m.id==='clay-lower');
-assert.equal(capturedWindow('clay-lower').start,0);
-near(capturedDuration('clay-lower'),fourth.duration);
+assert.equal(capturedWindow('clay-lower').start,1);
+near(capturedDuration('clay-lower'),12);
 assert.equal(captureReferences['clay-lower'].cameraMountedAt,5);
-assert.equal(sampleMotion('clay-lower',4.49).gazeReferenceActive,false);
-assert.equal(sampleMotion('clay-lower',4.5).gazeReferenceActive,true);
-assert.ok(distance(sampleMotion('clay-lower',4.5).coords[4],sampleMotion('clay-lower',8).coords[4])>.01,'Full action must not be replaced by a frozen hold');
-console.log('PASS: original BVH reconstruction, captured tennis/clay proportions, mirroring, rigid equipment, exact full/slice agreement and complete study 4.');
+assert.equal(sampleMotion('clay-lower',3.49).gazeReferenceActive,false);
+assert.equal(sampleMotion('clay-lower',3.5).gazeReferenceActive,true);
+assert.ok(distance(sampleMotion('clay-lower',3.5).coords[4],sampleMotion('clay-lower',8).coords[4])>.01,'Full action must not be replaced by a frozen hold');
+console.log('PASS: original BVH reconstruction, captured tennis/clay proportions, mirroring, rigid equipment, independent source recordings and trimmed study 4.');

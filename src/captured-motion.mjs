@@ -38,7 +38,8 @@ function makeTrack(meta,data){
 }
 export function capturedWindow(id){
  const window=captureWindows[id],track=window&&cache.get(window.track);if(!track)return null;
- return {...window,end:Math.min(window.end??track.meta.duration,track.meta.duration),frameRate:1/track.meta.frameTime};
+ const start=Math.max(0,Math.min(window.start,track.meta.duration));
+ return {...window,start,end:Math.max(start,Math.min(window.end??track.meta.duration,track.meta.duration)),frameRate:1/track.meta.frameTime};
 }
 export function capturedDuration(id){const window=capturedWindow(id);return window?window.end-window.start:null;}
 function evaluateTrack(track,time){
@@ -71,7 +72,7 @@ export function sampleCapturedMotion(id,elapsed=0,flipped=false){
   const oars=[1,-1].map((side,i)=>rowingAttachment(coords[4+i],side,[-.13,track.pivotHeight,side*.64]));
   Object.assign(result,{oars,equipmentHands:oars.map(o=>o.hand)});
  }else if(meta.sport==='tennis'){
-  Object.assign(result,capturedTennis(coords,rotations[indices.RightHand],track.localShaft,window.track==='tennis-backhand'));
+  Object.assign(result,capturedTennis(coords,rotations[indices.RightHand],track.localShaft,window.track.startsWith('tennis-backhand')));
  }else if(meta.sport==='clay'){
   const up=new Vector3(0,1,0).applyQuaternion(rotations[indices.Spine3]);
   Object.assign(result,capturedClay(coords,up,rotations[indices.RightHand],track.localShaft));

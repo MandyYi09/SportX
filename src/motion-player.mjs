@@ -1,6 +1,5 @@
 import {capturedDuration,capturedWindow} from './captured-motion.mjs';
-import {captureWindows} from './capture-catalog.mjs';
-import {motionById, motionClips} from './motion-catalog.mjs';
+import {motionById} from './motion-catalog.mjs';
 import {sampleMotion} from './motion-rig.mjs?v=22';
 import {createMotionClock} from './motion-clock.mjs';
 
@@ -11,26 +10,23 @@ export function createMotionPlayer() {
  let clip=null,flipped=false,lastDisplay='',lastPlaying=null;
  function updateDisplay(){
   if(!clip)return;
-  const {elapsed,duration,playing}=clock.read();
+  const {elapsed,playing}=clock.read();
   if(playing!==lastPlaying){
    play.textContent=playing?'Pause':'Play';
    play.setAttribute('aria-label',playing?'Pause movement':'Play movement');
    lastPlaying=playing;
   }
-  const display=`${elapsed.toFixed(2)} / ${duration.toFixed(2)} s`;
-  if(display!==lastDisplay){$('motion-time').textContent=display;seek.value=String(elapsed);lastDisplay=display;}
-  const capture=capturedWindow(clip.id),sourceTime=(capture?.start??clip.sourceStart)+elapsed;
-  const phase=motionClips.find(c=>{
-   const window=captureWindows[c.id];
-   return c.track===clip.track&&c.phase!=='full'&&(capture?window&&window.start<=sourceTime&&window.end>=sourceTime:c.sourceStart<=sourceTime&&c.sourceEnd>=sourceTime);
-  });
-  const phaseName={backswing:'Backswing',drop:'Racket drop',swing:'Swing & follow-through'}[phase?.phase||clip.phase];
-  const phaseText=capture?'Expert demonstration'+(phaseName?` · ${phaseName}`:''):clip.type==='tennis'?({backswing:'Backswing',drop:'Racket drop',swing:'Swing & follow-through'}[phase?.phase||'swing']):clip.name;
+  const capture=capturedWindow(clip.id),start=capture?.start??clip.sourceStart,end=capture?.end??clip.sourceEnd;
+  const display=`${(start+elapsed).toFixed(2)} / ${end.toFixed(2)} s`;
+  seek.value=String(start+elapsed);
+  if(display!==lastDisplay){$('motion-time').textContent=display;lastDisplay=display;}
+  const phaseText=clip.name;
   if($('motion-phase').dataset.phase!==phaseText){$('motion-phase').dataset.phase=phaseText;$('motion-phase').textContent=phaseText;}
+
  }
  play.onclick=()=>{if(clock.read().playing)clock.pause();else clock.play();updateDisplay();};
  $('motion-restart').onclick=()=>{clock.restart();updateDisplay();};
- seek.oninput=()=>{clock.seek(Number(seek.value));updateDisplay();};
+ seek.oninput=()=>{clock.seek(Number(seek.value)-(capturedWindow(clip?.id)?.start??clip?.sourceStart??0));updateDisplay();};
  function updateSpeed(){
   const speed=Number($('motion-speed').value);
   clock.setSpeed(speed);$('motion-speed-value').textContent=`${Number(speed.toFixed(2))}×`;
@@ -49,7 +45,12 @@ export function createMotionPlayer() {
    clock.select(clip?(capturedDuration(clip.id)??clip.sourceEnd-clip.sourceStart):0,!document.hidden&&!matchMedia('(prefers-reduced-motion: reduce)').matches);
    if(!clip)return;
    clock.setSpeed(Number($('motion-speed').value));
-   seek.max=String(clock.read().duration);seek.value='0';updateDisplay();
+   const capture=capturedWindow(clip.id),start=capture?.start??clip.sourceStart,end=capture?.end??clip.sourceEnd;
+   seek.min=String(start);seek.max=String(end);seek.value=String(start);
+   const format=seconds=>`${String(Math.floor(seconds/60)).padStart(2,'0')}:${(seconds%60).toFixed(2).padStart(5,'0')}`;
+   $('motion-range').textContent=`${clip.sourceFile} · ${format(start)}–${format(end)}`;
+   $('motion-range-note').hidden=!(end<clip.sourceEnd);
+   updateDisplay();
   },
   mirror(value){flipped=value;},
   sample(){return clip?sampleMotion(clip.id,clock.read().elapsed,flipped):null;},

@@ -10,7 +10,7 @@ const distance=(a,b)=>Math.hypot(...a.map((x,i)=>x-b[i]));
 const near=(a,b,tolerance=1e-7)=>assert.ok(Math.abs(a-b)<tolerance,`${a} != ${b}`);
 const nearFrame=(a,b)=>a.forEach((p,i)=>p.forEach((v,j)=>near(v,b[i][j])));
 const limbs=[[0,2,.33],[2,4,.31],[1,3,.33],[3,5,.31],[6,8,.43],[8,10,.43],[7,9,.43],[9,11,.43]];
-assert.equal(motionClips.length,15);
+assert.equal(motionClips.length,14);
 for(const clip of motionClips){
  assert.ok(clip.sourceEnd>clip.sourceStart);
  assert.ok(!excludedMotionSources.includes(clip.sourceFile));
@@ -89,19 +89,7 @@ for(const clip of motionClips){
  nearFrame(sampleMotion(clip.id,-1).coords,sampleMotion(clip.id,0).coords);
  nearFrame(sampleMotion(clip.id,duration+10).coords,sampleMotion(clip.id,duration).coords);
 }
-for(const side of ['forehand','backhand']){
- const full=motionById[`tennis-${side}-full`];
- const slices=['backswing','drop','swing'].map(phase=>motionById[`tennis-${side}-${phase}`]);
- assert.equal(sequenceFor(full.id).length,4);
- near(slices[0].sourceStart,full.sourceStart);near(slices.at(-1).sourceEnd,full.sourceEnd);
- for(let i=1;i<slices.length;i++)near(slices[i-1].sourceEnd,slices[i].sourceStart);
- for(const slice of slices){
-  assert.equal(slice.sourceFile,full.sourceFile);
-  for(let t=0;t<=slice.sourceEnd-slice.sourceStart;t+=.05)
-   nearFrame(sampleMotion(slice.id,t).coords,sampleMotion(full.id,t+slice.sourceStart-full.sourceStart).coords);
- }
-}
-assert.equal(practicePoses.find(p=>p.id==='clay-lower').zh[0],'完整动作 · 第4组');
+assert.equal(practicePoses.find(p=>p.id==='clay-lower').zh[0],'下枪');
 assert.equal(practicePoses.find(p=>p.id==='rowing-half').zh[0],'1/2 划');
 assert.equal(sampleMotion('reach',0),null);
 let now=0;
@@ -123,4 +111,4 @@ const html=await readFile(new URL('../src/index.html',import.meta.url),'utf8');
 assert.ok(!/id="motion-(video|source|download)"/.test(html));
 const publicFiles=await readdir(new URL('../src/',import.meta.url),{recursive:true});
 assert.ok(!publicFiles.some(file=>/\.(mp4|mov|webm)$/i.test(file)),'Recordings must stay outside public files');
-console.log('PASS: 15 standalone 3D movements, media-free public files, playback clock, tennis phases, fixed bone lengths, hand attachments, oar pivots, rigid clay contacts, mirroring and animation continuity.');
+console.log('PASS: 14 standalone 3D movements, media-free public files, playback clock, independent tennis studies, fixed bone lengths, hand attachments, oar pivots, rigid clay contacts, mirroring and animation continuity.');
