@@ -8,6 +8,7 @@
     <title>fitAI — Movement practice prototype</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="motion.css">
+    <link rel="stylesheet" href="interface.css">
     <link rel="stylesheet" href="mobile.css">
     <link rel="stylesheet" href="rowing-correction.css">
 </head>
@@ -18,7 +19,7 @@
         <div class="workspace">
             <aside class="library">
                 <div class="section-title">
-                    <h2>Your practice</h2><span id="movement-count">51 movements</span>
+                    <h2>Movement library</h2><span id="movement-count">51 movements</span>
                 </div>
                 <button class="quiet library-help" id="help">How it works ↗</button>
                 <div class="filters" role="group" aria-label="Movement category"><button class="selected"
@@ -62,7 +63,7 @@
                 <div class="camera-actions"><button class="primary" id="camera">▣ Enable camera</button><button id="show-camera" class="quiet camera-toggle" disabled>▣ Show camera</button></div><dialog id="camera-dialog"><div class="camera-dialog-header"><h2>Your camera</h2><button id="camera-switch" class="quiet" hidden>Switch camera</button><button id="close-camera" class="quiet">Close ×</button></div><div class="camera-feed"><video id="video" autoplay playsinline muted hidden></video><canvas
                         id="overlay" hidden></canvas>
                     </div><p>Solid lines: you. Dashed blue lines: reference.</p></dialog><p id="camera-setup" class="camera-setup">Camera setup: face the camera with your whole body visible.</p><div class="comparison-panel"><div class="comparison-legend"><span><i class="you-key"></i>Your pose</span><span><i class="reference-key"></i>Reference</span><span><i class="adjust-key"></i>Try adjusting</span></div><p id="comparison-status">Full-body tracking needed to compare</p><div id="comparison-metrics"></div><small>Dashed lines are scaled to your torso.</small></div><div class="camera-bar">
-                    <div><strong id="camera-title">Your space. Your pace.</strong><span id="camera-sub">Enable your
+                    <div><strong id="camera-title">Camera preview</strong><span id="camera-sub">Enable your
                             camera to get live alignment cues.</span></div>
                 </div>
                 <div class="privacy-line">◈ &nbsp; Processed on your device. No video is recorded or uploaded.</div>
@@ -71,14 +72,13 @@
                 <div class="eyebrow" id="pose-tag">STRETCH · UPPER BODY</div>
                 <h2 id="pose-name"></h2>
                 <p id="pose-description"></p>
-                <div id="practice-note" class="practice-note" hidden><p id="practice-note-text"></p><a id="practice-source" target="_blank" rel="noreferrer"></a></div>
-                <div class="facts"><span>◎ <b id="hold-duration">30 sec</b><small id="duration-label">Suggested hold</small></span><span>⌁
-                        <b id="pose-level">Easy</b><small>Difficulty</small></span></div>
+
+                <div class="facts" id="pose-facts"><span><small id="duration-label">Suggested hold</small><b id="hold-duration">30 sec</b></span><span><small>Level</small><b id="pose-level">Easy</b></span></div>
                 <div class="divider"></div>
-                <h3 id="cue-heading">Find your alignment</h3>
+                <h3 id="cue-heading">Movement cues</h3>
                 <div id="cues"></div>
                 <div class="feedback" aria-live="polite"><span id="feedback-icon">◌</span>
-                    <div><strong id="feedback-title">Ready when you are</strong>
+                    <div><strong id="feedback-title">Camera off</strong>
                         <p id="feedback-text">Turn on your camera to see your alignment feedback here.</p>
                     </div>
                 </div>
@@ -87,12 +87,12 @@
                         aria-label="Start hold timer">▶</button>
                 </div>
                 <p class="timer-note" id="timer-note">Start or pause the timer.</p>
+                <details id="practice-note" class="practice-note" hidden><summary>Practice notes</summary><p id="practice-note-text"></p><a id="practice-source" target="_blank" rel="noreferrer"></a></details>
             </aside>
         </div>
     </main>
     <dialog id="help-dialog"><button id="close-help" class="close" aria-label="Close">×</button>
-        <div class="eyebrow">WELCOME TO YOUR PRACTICE</div>
-        <h2>Start your practice</h2>
+        <h2>How to use fitAI</h2>
         <ol>
             <li>Select a movement and view the 3D demonstration.</li>
             <li>Position the camera as shown and keep your limbs visible.</li>
@@ -105,7 +105,7 @@
         <button id="got-it" class="primary">Start practice</button>
     </dialog>
     <video id="tracking-video" autoplay playsinline muted aria-hidden="true" tabindex="-1"></video>
-    <script type="module" src="app.js?v=48"></script>
+    <script type="module" src="app.js?v=49"></script>
 </body>
 
 </html>
