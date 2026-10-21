@@ -1,3 +1,4 @@
+import {createRowingSpeech,adjustmentSpeechId,checkpointSpeechIds,missingSpeechId} from './rowing-speech.mjs';
 import {rowingMovementArrow,renderRowingArrows} from './rowing-arrows.mjs';
 import {RowingFeedbackCycle,RowingLimbFeedback,rowingAdjustmentCue,rowingFeedbackSegments} from './rowing-feedback.mjs';
 import {createRowingExpertOverlay} from './rowing-expert-overlay.mjs';
@@ -19,7 +20,7 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
  const orientation=new RowingOrientation(),preparation=new RowingOrientation(),feedbackCycle=new RowingFeedbackCycle(),limbFeedback=new RowingLimbFeedback();
  let flashes=[],activeErrors=[],feedbackBadge,arrowsLayer,chosenCue=null,cueSince=0;
  const preparationBar=document.createElement('div');preparationBar.id='rowing-preparation';preparationBar.className='rowing-progress';preparationBar.hidden=true;
- preparationBar.innerHTML='<div role="status" aria-live="polite"><strong></strong><span></span></div><button data-preparation-retry hidden></button><button type="button" data-rowing-mirror class="rowing-mirror" aria-pressed="false"></button>';
+ preparationBar.innerHTML='<div role="status" aria-live="polite"><strong></strong><span></span></div><button data-preparation-retry hidden></button><button type="button" data-rowing-voice class="rowing-voice" aria-pressed="true"></button><button type="button" data-rowing-mirror class="rowing-mirror" aria-pressed="false"></button>';
  document.getElementById('stage-layout').before(preparationBar);
  let prepStream=null,prepId=null,prepFrame=0,prepGeneration=0,returnStream=null,disposing=false;
  let preparedPose=null,preparedWorld=null,mirrored=false,rowActive=false;
@@ -27,6 +28,25 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
  const tr=(en,zh)=>getLanguage()==='zh'?zh:en;
  let video,canvas,status,metrics,steps,help,retry,opacityControl,expertOverlay,lastPose=null,lastWorld=null,modelFailed=false;
  let relocate,phaseTitle,phaseNote,lastAssessment;
+ const speech=createRowingSpeech({getLanguage,onState:syncVoice});
+ let speechContext='',entryDemo=true;
+ function syncVoice(){
+  const {enabled,blocked}=speech.state();
+  for(const button of document.querySelectorAll('[data-rowing-voice]')){
+   button.setAttribute('aria-pressed',String(enabled));
+   const label=blocked?tr('Tap for voice','点此启用语音'):tr(enabled?'Voice · On':'Voice · Off',enabled?'语音 · 开':'语音 · 关');
+   if(button.textContent!==label)button.textContent=label;
+   button.title=tr('Prerecorded synthetic voice · follows selected language','预制合成语音 · 跟随所选语言');
+   button.onclick=()=>{speechContext='';if(blocked)speech.unlock();else speech.setEnabled(!enabled);};
+  }
+ }
+ const hasCamera=()=>rowActive&&!!(dialog.open?returnStream:prepStream)?.getVideoTracks().some(track=>track.readyState==='live');
+ function say(id,options={}){if(document.hidden||!hasCamera()){speech.stop();return;}speech.request(id,options);}
+ const gesture=e=>{if(e.target.closest('#camera')||hasCamera()&&e.target.closest('#start-rowing-correction,[data-preparation-retry],[data-pose],[data-language],[data-rowing-voice]'))speech.unlock();};
+ document.addEventListener('click',gesture,true);
+ const languageObserver=new MutationObserver(()=>{speech.stop();speechContext='';syncVoice();});
+ languageObserver.observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
+ syncVoice();
  function phase(key,en,zh,noteEn,noteZh){
   dialog.dataset.phase=key;
   const title=tr(en,zh),note=tr(noteEn,noteZh);
@@ -50,6 +70,7 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
  }
  function stopStream(){stream?.getTracks().forEach(t=>{t.onended=null;t.stop();});stream=null;if(video)video.srcObject=null;}
  function close(){
+  speech.reset();speechContext='';
   const wasOpen=dialog.open,resume=returnStream;returnStream=null;
   generation++;cancelAnimationFrame(frame);stopStream();orientation.reset();feedbackCycle.reset();limbFeedback.reset();flashes=[];dialog.close();
   if(wasOpen&&!disposing&&resume?.active)void prepare(id,resume);
@@ -59,9 +80,13 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   const title=preparationBar.querySelector('strong'),note=preparationBar.querySelector('span');
   if(title.textContent!==tr(en,zh))title.textContent=tr(en,zh);
   if(note.textContent!==tr(noteEn,noteZh))note.textContent=tr(noteEn,noteZh);
+  if(key==='ready')say('setup-ready',{delay:300,repeatMs:Infinity});
+  else if(key==='locating')say('setup-shoulders',{delay:1800,repeatMs:15000});
+  else if(key==='error')say('tracking-lost',{delay:1200,repeatMs:15000});
  }
  function readyButton(){const b=document.getElementById('start-rowing-correction');if(b)b.disabled=!preparation.read().ready;}
  function cancelPreparation(){
+  speech.reset();speechContext='';
   prepGeneration++;cancelAnimationFrame(prepFrame);prepStream=null;preparedPose=null;preparedWorld=null;preparation.reset();readyButton();
   preparationBar.querySelector('[data-preparation-retry]').hidden=true;
   prepPhase('off','Enable camera to find your direction','开启相机，识别朝向','The expert will follow you before correction starts.','专家模型会在开始纠错前跟随你的朝向。');
@@ -102,8 +127,11 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
  preparationBar.querySelector('[data-preparation-retry]').textContent=tr('Retry','重试');
  preparationBar.querySelector('[data-preparation-retry]').onclick=()=>{if(prepStream)void prepare(prepId,prepStream);};
  function selectCheckpoint(i){
+  speech.reset();speechContext='';entryDemo=true;
   feedbackCycle.reset();limbFeedback.reset();flashes=[];activeErrors=[];chosenCue=null;
   index=i;steps.querySelectorAll('button').forEach((b,n)=>b.setAttribute('aria-pressed',String(i===n)));
+  say(`checkpoint-${checkpointSpeechIds[id][index]}`,{delay:0,repeatMs:Infinity});
+  speechContext='demonstrate';
   const key=rowingCheckpoints[id][index];help.textContent=tr(key.en,key.zh);
   lastAssessment=draw(lastPose);if(detector&&stream)update(lastAssessment);
  }
@@ -188,6 +216,33 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   else if(assessment.missing.length)note=tr('Not clear: ','尚未看清：')+assessment.missing.map(p=>tr(p.en,p.zh)+(p.reason==='outside'?tr(' (out of frame)','（画面外）'):'')).join(tr(', ','、'));
   else if(!view.locked)note=tr('The expert follows your horizontal direction.','专家模型正在跟随你的水平朝向。');
   status.textContent=note;status.hidden=!note;
+  syncVoice();
+  if(view.offAxis){say('direction-changed',{delay:700,repeatMs:15000});speechContext='moved';}
+  else if(cycle.mode==='demonstrate'){
+   if(speechContext!=='demonstrate'){
+    say(entryDemo?`checkpoint-${checkpointSpeechIds[id][index]}`:'watch-again',{delay:0,repeatMs:5000});speechContext='demonstrate';
+   }
+  }else if(valid&&flashes.length){
+   const flash=flashes[0],heightOnly=flash.metrics.every(m=>m.guidanceOnly);
+   say(`confirmed-${flash.key}${heightOnly?'-height':''}`,{delay:0,repeatMs:Infinity});speechContext='confirmed';
+  }else if(valid&&cycle.mode==='aligned'){
+   say(partial?'aligned-visible':'aligned',{delay:0,repeatMs:Infinity});speechContext='aligned';
+  }else if(valid&&activeErrors.length){
+   const metric=activeErrors.find(m=>m.key===chosenCue)||activeErrors[0];
+   say(adjustmentSpeechId(metric),{delay:300,repeatMs:10000});speechContext='adjustment';
+  }else if(valid&&available.some(m=>!m.close)){
+   // Keep an instruction silent until the same error has persisted long enough.
+   if(speechContext==='demonstrate'){say('follow-overlay',{delay:0,repeatMs:Infinity});speechContext='follow';entryDemo=false;}
+   else if(speechContext==='adjustment')say(null);
+  }else if(!Object.keys(assessment.actual).length){say('tracking-lost',{delay:1800,repeatMs:15000});speechContext='tracking';}
+  else if(!valid||!canConfirm){
+   const missing=assessment.missing.find(m=>m.id===15||m.id===16)||assessment.missing[0];
+   say(missingSpeechId(missing),{delay:1800,repeatMs:15000});speechContext='tracking';
+  }else if(speechContext==='demonstrate'){
+   say('follow-overlay',{delay:0,repeatMs:Infinity});speechContext='follow';entryDemo=false;
+  }else if(speechContext==='adjustment'||speechContext==='tracking')say(null);
+  if(cycle.mode!=='demonstrate')entryDemo=false;
+
   if(valid&&cycle.showHints)for(const m of available){
    const row=document.createElement('div');row.className='rowing-metric';row.textContent=`${tr(m.part,m.zh)} · ${m.kind==='position'?tr(m.close?'Height matches':'Adjust height',m.close?'高度接近':'需要调整高度'):`${Math.round(m.actual)}° / ${Math.round(m.target)}°`} ${m.close?'≈':'↗'}`;metrics.append(row);
   }
@@ -203,7 +258,7 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
     // Clear stale metrics immediately when direction or tracking becomes invalid.
     if(orientation.read().offAxis||!p)metrics.replaceChildren();
     if(now-lastUi>200){lastUi=now;update(lastAssessment);}
-   }catch{phase('error','Tracking paused','识别已暂停','Retry tracking below.','请重试识别。');metrics.replaceChildren();feedbackBadge.hidden=true;feedbackCycle.pause();limbFeedback.pause();flashes=[];draw(null);retry.hidden=false;return;}
+   }catch{speech.stop();phase('error','Tracking paused','识别已暂停','Retry tracking below.','请重试识别。');metrics.replaceChildren();feedbackBadge.hidden=true;feedbackCycle.pause();limbFeedback.pause();flashes=[];draw(null);retry.hidden=false;return;}
   }
   frame=requestAnimationFrame(t=>track(t,token));
  }
@@ -212,18 +267,18 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   try{
    stream=sourceStream.clone();video.srcObject=stream;await video.play();
    if(token!==generation||!dialog.open)return;
-   stream.getVideoTracks()[0].onended=()=>{if(token===generation){metrics.replaceChildren();phase('error','Camera disconnected','相机已断开','Return to preparation to reconnect.','请返回准备页面重新连接。');feedbackBadge.hidden=true;feedbackCycle.pause();limbFeedback.pause();flashes=[];draw(null);retry.hidden=false;}};
+   stream.getVideoTracks()[0].onended=()=>{if(token===generation){speech.stop();metrics.replaceChildren();phase('error','Camera disconnected','相机已断开','Return to preparation to reconnect.','请返回准备页面重新连接。');feedbackBadge.hidden=true;feedbackCycle.pause();limbFeedback.pause();flashes=[];draw(null);retry.hidden=false;}};
    detector=await getDetector();if(token!==generation||!stream)return;
    lastAssessment=draw(lastPose);update(lastAssessment);
    frame=requestAnimationFrame(t=>track(t,token));
   }catch{if(token===generation){phase('error','Camera unavailable','相机暂不可用','Return to preparation to reconnect.','请返回准备页面重新连接。');retry.hidden=false;}}
  }
- document.addEventListener('visibilitychange',()=>{if(document.hidden){feedbackCycle.pause();limbFeedback.pause();flashes=[];if(feedbackBadge)feedbackBadge.hidden=true;}});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden){speech.stop();speechContext='';feedbackCycle.pause();limbFeedback.pause();flashes=[];if(feedbackBadge)feedbackBadge.hidden=true;}});
  dialog.addEventListener('cancel',e=>{e.preventDefault();close();});
- window.addEventListener('pagehide',()=>{disposing=true;cancelPreparation();close();expertOverlay?.dispose();expertOverlay=null;});
+ window.addEventListener('pagehide',()=>{disposing=true;cancelPreparation();close();speech.dispose();languageObserver.disconnect();document.removeEventListener('click',gesture,true);expertOverlay?.dispose();expertOverlay=null;});
  return {prepare,cancelPreparation,isReady:()=>preparation.read().ready,
  setPose(poseId,externalStream){
-  rowActive=!!rowingCheckpoints[poseId];preparationBar.hidden=!rowActive;syncMirror();
+  rowActive=!!rowingCheckpoints[poseId];preparationBar.hidden=!rowActive;syncMirror();syncVoice();
   const b=document.getElementById('start-rowing-correction');if(b)preparationBar.append(b);
   if(externalStream&&rowingCheckpoints[poseId])void prepare(poseId,externalStream);else cancelPreparation();
  },
@@ -234,11 +289,11 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   beforeOpen();id=poseId;index=0;lastUi=0;lastPose=pose;lastWorld=world;detector=null;modelFailed=false;orientation.reset();
   orientation.yaw=lockedYaw;orientation.ready=true;orientation.lock();returnStream=external;
   lateral=sourceLateral(sampleCapturedMotion(id,rowingCheckpoints[id][0].time).coords);
-  dialog.innerHTML=`<div class="rowing-header"><div><small>${tr('ROWING · STATIC CORRECTION','赛艇 · 静态纠错')}</small><h2>${tr('Find your position','找到你的姿态')}</h2></div><button type="button" data-close>${tr('Close ×','关闭 ×')}</button></div><nav class="rowing-checkpoints" aria-label="${tr('Static checkpoints','静态关键姿态')}"></nav><div class="rowing-progress"><div role="status" aria-live="polite"><strong data-phase-title></strong><span data-phase-note></span></div><button data-relocate hidden>${tr('Reposition','重新定位')}</button></div><div class="rowing-feed"><video autoplay playsinline muted></video><canvas></canvas><svg class="rowing-arrows" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg><button type="button" data-rowing-mirror class="rowing-mirror rowing-feed-mirror" aria-pressed="false"></button><div class="rowing-result" role="status" aria-live="polite" hidden></div><span class="rowing-legend">${tr('Expert model / Adjust these parts','专家模型 / 待调整部位')}</span></div><p class="rowing-instruction"></p><p class="rowing-status" hidden></p><details class="rowing-angle-details"><summary>${tr('Angle details','角度详情')}</summary><div class="rowing-metrics"></div></details><details class="rowing-settings"><summary>${tr('Camera & display','相机与显示设置')}</summary><div class="rowing-options"><label>${tr('Expert opacity','专家模型透明度')}<input data-opacity type="range" min="0.2" max="0.8" step="0.05" value="0.45" aria-label="${tr('Expert opacity','专家模型透明度')}"></label></div><p class="rowing-setup">${tr('Keep the camera level. If framing is too narrow, try a wider lens or your phone. Horizontal direction is estimated automatically.','保持相机水平。取景太窄时可换广角镜头或使用手机；系统会自动估计水平朝向。')}</p></details><button data-retry hidden>${tr('Return to preparation','返回准备页面')}</button>`;
+  dialog.innerHTML=`<div class="rowing-header"><div><small>${tr('ROWING · STATIC CORRECTION','赛艇 · 静态纠错')}</small><h2>${tr('Find your position','找到你的姿态')}</h2></div><button type="button" data-close>${tr('Close ×','关闭 ×')}</button></div><nav class="rowing-checkpoints" aria-label="${tr('Static checkpoints','静态关键姿态')}"></nav><div class="rowing-progress"><div role="status" aria-live="polite"><strong data-phase-title></strong><span data-phase-note></span></div><button data-relocate hidden>${tr('Reposition','重新定位')}</button></div><div class="rowing-voice-bar"><button type="button" data-rowing-voice class="rowing-voice" aria-pressed="true"></button></div><div class="rowing-feed"><video autoplay playsinline muted></video><canvas></canvas><svg class="rowing-arrows" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg><button type="button" data-rowing-mirror class="rowing-mirror rowing-feed-mirror" aria-pressed="false"></button><div class="rowing-result" role="status" aria-live="polite" hidden></div><span class="rowing-legend">${tr('Expert model / Adjust these parts','专家模型 / 待调整部位')}</span></div><p class="rowing-instruction"></p><p class="rowing-status" hidden></p><details class="rowing-angle-details"><summary>${tr('Angle details','角度详情')}</summary><div class="rowing-metrics"></div></details><details class="rowing-settings"><summary>${tr('Camera & display','相机与显示设置')}</summary><div class="rowing-options"><label>${tr('Expert opacity','专家模型透明度')}<input data-opacity type="range" min="0.2" max="0.8" step="0.05" value="0.45" aria-label="${tr('Expert opacity','专家模型透明度')}"></label></div><p class="rowing-setup">${tr('Keep the camera level. If framing is too narrow, try a wider lens or your phone. Horizontal direction is estimated automatically.','保持相机水平。取景太窄时可换广角镜头或使用手机；系统会自动估计水平朝向。')}</p></details><button data-retry hidden>${tr('Return to preparation','返回准备页面')}</button>`;
   video=dialog.querySelector('video');canvas=dialog.querySelector('canvas');status=dialog.querySelector('.rowing-status');metrics=dialog.querySelector('.rowing-metrics');steps=dialog.querySelector('nav');help=dialog.querySelector('.rowing-instruction');retry=dialog.querySelector('[data-retry]');opacityControl=dialog.querySelector('[data-opacity]');feedbackBadge=dialog.querySelector('.rowing-result');arrowsLayer=dialog.querySelector('.rowing-arrows');
   relocate=dialog.querySelector('[data-relocate]');phaseTitle=dialog.querySelector('[data-phase-title]');phaseNote=dialog.querySelector('[data-phase-note]');
   opacityControl.oninput=()=>{lastAssessment=draw(lastPose);};
-  syncMirror();
+  syncMirror();syncVoice();
   dialog.querySelector('[data-close]').onclick=close;
   retry.onclick=relocate.onclick=()=>close();
   rowingCheckpoints[id].forEach((key,i)=>{const b=document.createElement('button');b.type='button';b.textContent=`${i+1}. ${tr(key.en,key.zh)}`;b.onclick=()=>selectCheckpoint(i);steps.append(b);});

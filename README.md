@@ -24,6 +24,14 @@ Arms-only has two static checkpoints, half stroke has three and full stroke has 
 
 `npm test` includes continuous-angle, lock/reposition, partial-joint and camera lifecycle checks. With the local server running on port 5187, `node scripts/rowing-browser-check.mjs` uses Chrome, a canvas video stream and mocked inference to check the outside-to-correction flow, actual expert mesh rendering, mirror synchronization, model gender, localization and desktop/mobile bounds. These checks do not validate real webcam inference.
 
+## Prerecorded rowing speech
+
+The bilingual cue inventory has 57 semantic entries: 6 flow prompts, 8 checkpoint prompts, 20 adjustments, 9 confirmations and 14 tracking/framing messages. Each has a separate English and Mandarin MP3 under `src/assets/audio/rowing/en/` and `src/assets/audio/rowing/zh/`. `manifest.json` maps text, voice, duration, size and SHA-256 to all 114 clips. `sample-en.mp3` and `sample-zh.mp3` combine eight representative cues for review. The complete bilingual list is in [docs/ROWING-VOICE-LINES.md](docs/ROWING-VOICE-LINES.md).
+
+Audio uses offline Windows Speech Synthesis with Microsoft Zira (en-US) and Microsoft Huihui (zh-CN), rate 0.95, then ffmpeg normalization and encoding to 24 kHz mono 64 kbps MP3. `node scripts/generate-rowing-speech.mjs` regenerates the assets on Windows with these voices and ffmpeg/ffprobe installed; intermediate WAV files stay in ignored `.local/`. `node tests/rowing-speech.mjs` verifies inventory, audio metadata and content hashes.
+
+Rowing preparation and correction play these clips in the selected UI language. Voice controls appear outside and inside correction. Checkpoint demonstrations, persistent limb adjustments, tracking guidance and successful corrections have matching cues. Playback replaces stale instructions, debounces tracking loss and rate-limits repetition. A valid adjustment takes priority over an ordinary missing-joint notice. Closing correction, switching language or hiding the page cancels current speech. If browser autoplay blocks sound, tap the voice button to enable it. `node tests/rowing-speech-playback.mjs` checks scheduling and interruption; `node scripts/rowing-browser-check.mjs` checks actual English/Chinese MP3 playback, mute and visual correction together.
+
 ## Athlete recording studies — 2026-10-21
 
 The library has 56 movements, including 20 sports studies: seven independent tennis recordings, the six original forehand/backhand breakdowns, three rowing recordings and four shooting recordings. The original forehand and backhand groups each retain backswing, racket drop, swing and full stroke. Tennis studies correspond to `01_012`, `03_015`, `04_016`, `06_020`, `07_023`, `12_030` and `09_026`. The `11_028` study is excluded, along with the previously excluded `02_013` and `08_024`. Shooting study 4 is the second complete movement, retaining preparation, raising, holding and final lowering.
