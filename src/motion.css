@@ -16,3 +16,6 @@
 
 #three canvas{touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
 #three canvas.dragging{cursor:grabbing}
+
+#motion-speed{width:110px;min-height:28px;margin:0;accent-color:var(--accent);cursor:pointer}
+#motion-speed-value{min-width:4ch;font-variant-numeric:tabular-nums;text-align:right}

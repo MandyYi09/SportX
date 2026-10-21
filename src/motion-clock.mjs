@@ -1,6 +1,6 @@
 // Animation time is independent of media loading and render frequency.
 export function createMotionClock(now=()=>performance.now()) {
- let duration=0,elapsed=0,speed=.5,playing=false,anchor=now();
+ let duration=0,elapsed=0,speed=1,playing=false,anchor=now();
  function read() {
   const time=now();
   if(playing)elapsed=Math.min(duration,elapsed+Math.max(0,time-anchor)*speed/1000);

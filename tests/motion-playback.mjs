@@ -106,6 +106,7 @@ assert.equal(practicePoses.find(p=>p.id==='rowing-half').zh[0],'1/2 划');
 assert.equal(sampleMotion('reach',0),null);
 let now=0;
 const clock=createMotionClock(()=>now);
+assert.equal(clock.read().speed,1);clock.setSpeed(.5);
 clock.select(5);now=2000;near(clock.read().elapsed,1);
 clock.pause();now=7000;near(clock.read().elapsed,1);
 clock.play();now=9000;clock.setSpeed(1);near(clock.read().elapsed,2);

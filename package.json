@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/preview.mjs --port 5188",
-    "test": "node tests/pose-comparison.mjs && node tests/motion-playback.mjs && node tests/captured-motion.mjs",
+    "dev": "node scripts/preview.mjs --port 5187",
+    "test": "node tests/pose-comparison.mjs && node tests/motion-playback.mjs && node tests/captured-motion.mjs && node tests/athlete-model.mjs",
     "build": "node scripts/build.mjs"
   }
 }

@@ -25,7 +25,13 @@ export function createMotionPlayer() {
  play.onclick=()=>{if(clock.read().playing)clock.pause();else clock.play();updateDisplay();};
  $('motion-restart').onclick=()=>{clock.restart();updateDisplay();};
  seek.oninput=()=>{clock.seek(Number(seek.value));updateDisplay();};
- $('motion-speed').onchange=()=>{clock.setSpeed(Number($('motion-speed').value));updateDisplay();};
+ function updateSpeed(){
+  const speed=Number($('motion-speed').value);
+  clock.setSpeed(speed);$('motion-speed-value').textContent=`${Number(speed.toFixed(2))}×`;
+  $('motion-speed').setAttribute('aria-valuetext',`${Number(speed.toFixed(2))}×`);updateDisplay();
+ }
+ $('motion-speed').oninput=updateSpeed;$('motion-speed').onchange=updateSpeed;
+ updateSpeed();
  document.addEventListener('visibilitychange',()=>{if(document.hidden){clock.pause();updateDisplay();}});
  window.addEventListener('pagehide',()=>clock.pause());
  let lastUiUpdate=0;

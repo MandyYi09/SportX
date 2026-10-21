@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-const pages=await(await fetch('http://127.0.0.1:9224/json/list')).json();const page=pages.find(p=>p.type==='page'&&p.url.includes('5188'));
+const pages=await(await fetch('http://127.0.0.1:9224/json/list')).json();const page=pages.find(p=>p.type==='page'&&p.url.includes('5187'));
 const ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);let seq=0;const pending=new Map(),errors=[];
 ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.id){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(m.error):p.resolve(m.result);}else if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails);};
 const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq;pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params}));});
@@ -18,5 +18,6 @@ if(await run(`document.querySelector('#three canvas').classList.contains('draggi
 await fs.writeFile('artifacts/drag-rotation-preview.png',Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
 await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});await send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x-100,y:y-50}]});await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await new Promise(r=>setTimeout(r,300));
 const touched=(await send('Page.captureScreenshot',{format:'png',clip:box})).data;if(touched===after)throw Error('Touch drag did not rotate');
-await run(`document.querySelector('[data-model-view="side"]').click()`);if(!await run(`document.querySelector('[data-model-view="side"]').getAttribute('aria-pressed')==='true'`))throw Error('Preset reset failed');
+if(await run(`document.getElementById('reset-view').hidden`))throw Error('Reset missing after drag');
+await run(`document.getElementById('reset-view').click()`);if(!await run(`document.getElementById('reset-view').hidden`))throw Error('Reset did not hide');
 if(errors.length)throw Error(JSON.stringify(errors));console.log('PASS: mouse horizontal/vertical drag, pointer release, touch drag, preset reset, rendered view changes, no browser exceptions.');await send('Browser.close');ws.close();

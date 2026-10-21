@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-const pages=await (await fetch('http://127.0.0.1:9224/json/list')).json();const page=pages.find(p=>p.type==='page'&&p.url.includes('5188'));
+const pages=await (await fetch('http://127.0.0.1:9224/json/list')).json();const page=pages.find(p=>p.type==='page'&&p.url.includes('5187'));
 if(!page)throw Error('Preview page unavailable');
 const ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
 let seq=0;const pending=new Map(),errors=[];
@@ -22,8 +22,8 @@ for(const [id,duration] of [['rowing-arms',8.44],['rowing-half',12.48],['rowing-
 }
 await run(`document.querySelector('[data-pose="rowing-full"]').click();document.getElementById('motion-seek').value='5';document.getElementById('motion-seek').dispatchEvent(new Event('input'));`);
 await new Promise(r=>setTimeout(r,500));await fs.writeFile('artifacts/mocap-full-preview.png',Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
-await run(`document.getElementById('grip-detail').click()`);await new Promise(r=>setTimeout(r,700));await fs.writeFile('artifacts/mocap-hand-preview.png',Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
-await run(`document.getElementById('grip-detail').click();document.getElementById('motion-speed').value='.25';document.getElementById('motion-speed').value='0.25';document.getElementById('motion-speed').dispatchEvent(new Event('change'));document.getElementById('motion-play').click();`);
+await run(`document.getElementById('rotate').click()`);await new Promise(r=>setTimeout(r,700));await fs.writeFile('artifacts/mocap-hand-preview.png',Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+await run(`document.getElementById('rotate').click();document.getElementById('motion-speed').value='.25';document.getElementById('motion-speed').value='0.25';document.getElementById('motion-speed').dispatchEvent(new Event('change'));document.getElementById('motion-play').click();`);
 const performanceCheck=await run(`new Promise(resolve=>{const deltas=[];let start=performance.now(),last=start;function frame(now){deltas.push(now-last);last=now;if(now-start<2000)requestAnimationFrame(frame);else{deltas.sort((a,b)=>a-b);resolve({frames:deltas.length,meanMs:deltas.reduce((a,b)=>a+b,0)/deltas.length,p95Ms:deltas[Math.floor(deltas.length*.95)]});}}requestAnimationFrame(frame);})`);
 console.log('CHECKS',JSON.stringify(checks));console.log('FRAME_TIMING',JSON.stringify(performanceCheck));
 console.log('ERRORS',JSON.stringify(errors));if(errors.length)throw Error('Browser exceptions');await send('Browser.close');ws.close();
