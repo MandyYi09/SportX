@@ -1,3 +1,4 @@
+import {createRowingCorrection} from './rowing-correction-ui.mjs';
 import {loadCapturedMotions} from './captured-motion.mjs';
 try { await loadCapturedMotions(); } catch(error) { document.getElementById('stage-note').hidden=false; document.getElementById('stage-note').textContent='Movement demonstration could not load. Please reload.'; throw error; }
 import {prepareLandmarks,isSidePose,isUpperPose,requiredLandmarks} from './tracking-view.mjs';
@@ -20,8 +21,10 @@ import {fitYogaArms} from './yoga-proportions.mjs';
 import {fitMobilityArms,orientMobilityHand} from './mobility-proportions.mjs';
 import {createShootingProp,shootingGrip,shootingRearGrip,shootingEnvelope} from './shooting-model.mjs';
 import {rowingGrip} from './equipment-grip.mjs';
-import {setLanguage, registerPoseTranslations, startLocalization, refreshLocalization} from './i18n.mjs?v=21';
+import {getLanguage, setLanguage, registerPoseTranslations, startLocalization, refreshLocalization} from './i18n.mjs?v=21';
 const selectedPose = () => poses.find(p => p.id === current);
+const rowingCorrection=createRowingCorrection({getLanguage,getGender:()=>modelGender,onDirection:yaw=>sceneApi?.setTrackingYaw(yaw),beforeOpen:()=>{motionPlayer.pause();}});
+const correctionButton=document.createElement('button');correctionButton.className='primary';correctionButton.id='start-rowing-correction';correctionButton.textContent='Start correction';correctionButton.disabled=true;correctionButton.onclick=()=>rowingCorrection.open(current);$('camera').before(correctionButton);
 const framing = id => isUpperPose(id) ? 'Face the camera with shoulders, elbows, wrists and hips visible. Feet can stay out of frame.' : isSidePose(id) ? 'Turn side-on with your whole body visible.' : 'Face the camera with your whole body visible.';
 const presence = new PosePresence();
 const focusView = createFocusView($('stage'),()=>{presence.dismiss();focusView.setExpanded(false);});
@@ -99,7 +102,7 @@ function selectPose(id, keepSide=false) {
  const p=poses.find(p=>p.id===id); if(!p)throw Error('Unknown movement');
  if(stream && selectedPose().demoOnly !== p.demoOnly)stopCamera();
  if(!p.wristStudy || !selectedPose().wristStudy)wristMode='aligned';
- current=id; if(!keepSide)flipped=false; stopTimer(); remaining=p.hold || 30; updateTimer();
+ current=id; $('demo-video').style.transform=p.type==='rowing'||cameraFacing==='environment'?'none':'scaleX(-1)';correctionButton.hidden=p.type!=='rowing'; if(!keepSide)flipped=false; stopTimer(); remaining=p.hold || 30; updateTimer();
  viewZoom=1;
  document.querySelector('.studio').classList.toggle('motion-study',!!p.motion);
  document.querySelector('.workspace').classList.toggle('motion-workspace',!!p.motion);
@@ -129,7 +132,7 @@ function selectPose(id, keepSide=false) {
  $('camera-sub').textContent=p.demoOnly ? stream ? 'Your camera is beside the 3D guide. No technique scoring.' : 'Enable camera to see yourself beside the 3D guide. No technique scoring.' : stream ? framing(id) : 'Enable your camera for an approximate body-shape comparison.';
  $('show-camera').hidden=document.querySelector('.comparison-panel').hidden=!!p.demoOnly;
  motionPlayer.select(id);motionPlayer.mirror(flipped);
- drawCards();sceneApi?.setPose(id);setWristMode(wristMode); $('switch-side').hidden=!(p.asymmetric || ['side','warrior'].includes(id));
+ drawCards();sceneApi?.setPose(id);rowingCorrection.setPose(id,stream);setWristMode(wristMode); $('switch-side').hidden=!(p.asymmetric || ['side','warrior'].includes(id));
  clearComparison();
  setFeedback({state:'unknown',title:p.demoOnly ? stream ? 'Live preview · no score' : 'Movement study' : stream ? 'Find your starting position' : 'Ready when you are',text:p.demoOnly ? stream ? 'Use the live preview to observe yourself. The illustrated guide does not assess your technique.' : 'Use the numbered steps to inspect each position. You can enable camera for self-observation without scoring.' : stream ? framing(id) : 'You can follow the guide without a camera, or enable it for body-shape feedback.'});
 }
@@ -149,6 +152,7 @@ function updateTimer() { $('time').textContent = `00:${String(remaining).padStar
 function stopTimer() { clearInterval(timerId); timerId = null; $('timer').textContent = '▶'; $('timer').setAttribute('aria-label', 'Start hold timer'); }
 $('timer').onclick = () => { if (timerId) { stopTimer(); return } if (!remaining) remaining = poses.find(p=>p.id===current)?.hold || 30; $('timer').textContent = 'Ⅱ'; $('timer').setAttribute('aria-label', 'Pause hold timer'); timerId = setInterval(() => { remaining--; updateTimer(); if (!remaining) { stopTimer(); setFeedback({ state: 'unknown', title: 'Take a breath', text: 'Release gently. Rest or switch sides when you’re ready.' }) } }, 1000); };
 function releaseCameraStream() {
+ rowingCorrection.cancelPreparation();
  runId++;
  const previousStream=stream;stream=null;
  previousStream?.getTracks().forEach(track=>{track.onended=null;track.stop();});
@@ -173,7 +177,7 @@ function stopCamera({keepDialogOpen=false}={}) {
 $('camera').onclick = async () => {
     if (stream) { stopCamera(); return } if (starting) return;
     const openingDemo = !!selectedPose().demoOnly;
-    starting = true; $('camera').disabled = true;
+    starting = true; $('camera').disabled = true; correctionButton.disabled=true;
     if(!switchingCamera)setCameraButton('Connecting…');
     try {
         if (!window.isSecureContext) throw Error('Camera requires a trusted HTTPS connection. Open the HTTPS version of this site and allow camera access.');
@@ -210,6 +214,7 @@ $('camera').onclick = async () => {
             setCameraButton('Stop camera'); $('camera-title').textContent = 'Practice with a live preview.';
             $('camera-sub').textContent = 'Your camera is beside the 3D guide. No technique scoring.';
             setFeedback({state:'unknown',title:'Live preview · no score',text:'Observe your movement beside the illustration. Ask your coach to review technique.'});
+            if(selectedPose().type==='rowing'){$('demo-video').style.transform='none';void rowingCorrection.prepare(current,stream);$('camera-sub').textContent='The expert follows your horizontal direction.';}
             return;
         }
         $('camera-sub').textContent = 'Preparing on-device pose tracking…';
@@ -228,7 +233,7 @@ $('camera').onclick = async () => {
         else stopCamera();
         const msg = e.name === 'NotAllowedError' ? 'Camera permission was declined. Allow access in your browser and try again.' : e.name === 'NotFoundError' ? 'No camera was found. Connect a camera and try again.' : e.message || 'Could not start tracking. Check your connection and try again.';
         $('camera-sub').textContent = msg; setFeedback({state:'warning',title:'Camera could not start',text:msg});
-    } finally { starting = false; $('camera').disabled = false; }
+    } finally { starting = false; $('camera').disabled = false; correctionButton.disabled=selectedPose().type==='rowing'?!rowingCorrection.isReady():false; }
 };
 $('demo-camera-stop').onclick = stopCamera;
 async function switchCamera(deviceId=null,flip=false){
@@ -535,13 +540,13 @@ async function initThree() {
             athlete.setSport(selectedPose().type,current);
             handMaterial.color.set(['yoga','stretch','gentle'].includes(selectedPose().type)?'#c0987b':selectedPose().type==='clay'?'#252b2d':selectedPose().type==='rowing'?'#ae805f':selectedPose().type==='tennis'?'#cba68e':liveGroup.visible?'#ded9ce':'#c9b79f');floor.material.color.set(color('--figure-body'));rings.material.color.set(color('--figure-joint'));
         }
-        sceneApi = { setGender(){athlete=athletes[modelGender];Object.entries(athletes).forEach(([gender,model])=>{model.root.visible=gender===modelGender;});setModelTheme();}, setTheme:setModelTheme, setWristMode(mode){wristDetail.setMode(mode);}, setPose(id) { target = getReference(id, flipped);resetView();setModelTheme(); }, setLive(values,adjust=[]) {
+        sceneApi = { setTrackingYaw(yaw){rotation=yaw;staticFrame=null;host.dataset.trackingYaw=String(yaw);}, setGender(){athlete=athletes[modelGender];Object.entries(athletes).forEach(([gender,model])=>{model.root.visible=gender===modelGender;});setModelTheme();}, setTheme:setModelTheme, setWristMode(mode){wristDetail.setMode(mode);}, setPose(id) { target = getReference(id, flipped);resetView();setModelTheme(); }, setLive(values,adjust=[]) {
             liveGroup.visible=!!values;setModelTheme();if(!values)return;
             const pts=values.map(v=>v?new THREE.Vector3(...v):null);liveJoints.forEach((m,i)=>{m.visible=!!pts[i];if(pts[i])m.position.copy(pts[i]);});
             links.forEach(([a,b],i)=>{const m=liveBones[i];m.visible=!!pts[a]&&!!pts[b];if(!m.visible)return;const d=pts[b].clone().sub(pts[a]);m.position.copy(pts[a]).add(pts[b]).multiplyScalar(.5);m.scale.y=d.length();m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());m.material.color.set(adjust.includes(landmarkIds[a])||adjust.includes(landmarkIds[b])?0x854316:0x243950);});
         } }; setModelTheme(); new ResizeObserver(() => { const { width, height } = host.getBoundingClientRect();hostSize={width,height}; if (!width || !height) return; renderer.setSize(width, height); camera.aspect = width / height; camera.position.z = Math.max(6.8, 4.6 / camera.aspect); camera.updateProjectionMatrix(); }).observe(host);
         let previousRender=performance.now();
-        renderer.setAnimationLoop(() => {const now=performance.now(),delta=Math.min(.1,(now-previousRender)/1000);previousRender=now;if (document.hidden || host.hidden) return;
+        renderer.setAnimationLoop(() => {const now=performance.now(),delta=Math.min(.1,(now-previousRender)/1000);previousRender=now;if (document.hidden || host.hidden || $('rowing-correction')?.open) return;
             motionSample=motionPlayer.sample();
             if(motionSample)neutralCoords.forEach((v,i)=>v.fromArray(motionSample.coords[i]));
             else neutralCoords.forEach((v,i)=>v.lerp(new THREE.Vector3(...target[i]),1-Math.exp(-10*delta)));

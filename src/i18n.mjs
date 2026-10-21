@@ -8,6 +8,8 @@ export function setLanguage(value) {
 
 // English remains the source copy. These strings are only used when Chinese is selected.
 const zh = {
+  'Mirror · On':'镜像 · 开','Mirror · Off':'镜像 · 关','Mirror camera, expert and joints together':'同步镜像相机、专家模型与关节点',
+  'Static pose correction':'静态姿态纠错','Start correction':'开始纠错','The expert follows your horizontal direction.':'专家模型正在跟随你的水平朝向。',
   'Expert demonstration':'专家示范', 'Expert demonstration · Backswing':'专家示范 · 引拍',
   'Expert demonstration · Racket drop':'专家示范 · 降拍', 'Expert demonstration · Swing & follow-through':'专家示范 · 挥拍与随挥',
   'Model gender':'模型性别','Model':'模型','Male':'男版','Female':'女版',
