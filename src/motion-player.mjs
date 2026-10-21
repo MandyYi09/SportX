@@ -1,4 +1,5 @@
-import {capturedDuration} from './captured-motion.mjs';
+import {capturedDuration,capturedWindow} from './captured-motion.mjs';
+import {captureWindows} from './capture-catalog.mjs';
 import {motionById, motionClips} from './motion-catalog.mjs';
 import {sampleMotion} from './motion-rig.mjs?v=22';
 import {createMotionClock} from './motion-clock.mjs';
@@ -18,8 +19,13 @@ export function createMotionPlayer() {
   }
   const display=`${elapsed.toFixed(2)} / ${duration.toFixed(2)} s`;
   if(display!==lastDisplay){$('motion-time').textContent=display;seek.value=String(elapsed);lastDisplay=display;}
-  const phase=motionClips.find(c=>c.track===clip.track&&c.phase!=='full'&&c.sourceStart<=clip.sourceStart+elapsed&&c.sourceEnd>clip.sourceStart+elapsed);
-  const phaseText=capturedDuration(clip.id)!==null?'实验室动捕 · 120 Hz':clip.type==='tennis'?({backswing:'Backswing',drop:'Racket drop',swing:'Swing & follow-through'}[phase?.phase||'swing']):clip.name;
+  const capture=capturedWindow(clip.id),sourceTime=(capture?.start??clip.sourceStart)+elapsed;
+  const phase=motionClips.find(c=>{
+   const window=captureWindows[c.id];
+   return c.track===clip.track&&c.phase!=='full'&&(capture?window&&window.start<=sourceTime&&window.end>=sourceTime:c.sourceStart<=sourceTime&&c.sourceEnd>=sourceTime);
+  });
+  const phaseName={backswing:'Backswing',drop:'Racket drop',swing:'Swing & follow-through'}[phase?.phase||clip.phase];
+  const phaseText=capture?'Expert demonstration'+(phaseName?` · ${phaseName}`:''):clip.type==='tennis'?({backswing:'Backswing',drop:'Racket drop',swing:'Swing & follow-through'}[phase?.phase||'swing']):clip.name;
   if($('motion-phase').dataset.phase!==phaseText){$('motion-phase').dataset.phase=phaseText;$('motion-phase').textContent=phaseText;}
  }
  play.onclick=()=>{if(clock.read().playing)clock.pause();else clock.play();updateDisplay();};

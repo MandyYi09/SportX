@@ -172,11 +172,11 @@ export const motionClips = [
     "id": "clay-lower",
     "type": "clay",
     "sequence": "clay",
-    "name": "Lowering",
-    "zhName": "下枪",
+    "name": "Complete movement · take 4",
+    "zhName": "完整动作 · 第4组",
     "sourceFile": "sheji_04_010.mp4",
-    "sourceStart": 10.5,
-    "sourceEnd": 13.3,
+    "sourceStart": 0,
+    "sourceEnd": 14.325,
     "track": "clay-lower",
     "phase": "full"
   }
