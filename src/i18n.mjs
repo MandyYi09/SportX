@@ -8,6 +8,8 @@ export function setLanguage(value) {
 
 // English remains the source copy. These strings are only used when Chinese is selected.
 const zh = {
+  'Rotate': '旋转', 'Reset view': '恢复默认视角',
+  'Drag to rotate · scroll to zoom': '拖拽旋转 · 滚轮缩放',
   'Mobility': '拉伸与舒缓', 'Choose your mode': '选择练习模式', 'Mobility mode': '拉伸与舒缓模式', 'Gentle mode': '舒缓模式',
   'Standing and seated stretches for your shoulders, torso and legs.': '通过站姿和坐姿拉伸，伸展肩部、躯干和腿部。',
   'Small seated movements for your arms and shoulders, with chair support.': '借助椅子支撑，以小幅坐姿动作活动手臂和肩膀。',
@@ -55,7 +57,7 @@ const zh = {
   'Follow the selected movement’s camera setup with good lighting. Gentle movements only need your shoulders, arms and hips in frame. Rowing and Tennis offer a live camera preview beside the 3D guide without technique scoring.': '根据所选动作调整相机并保持光线充足。舒缓活动只需让肩、手臂和髋部进入画面。双桨赛艇和网球可以在 3D 示范旁显示实时相机画面，但不提供技术评分。',
   'Enable the camera. Landmarks and alignment cues appear when tracking is clear.': '开启相机。识别清晰时会出现关键点和动作提示。',
   'Use the optional timer while comfortable. Stop immediately if it hurts.': '可以按需使用计时器；如有疼痛，请立即停止。',
-  'Front, ¾ and Side rotate the model for inspection. Follow the camera setup shown for the selected pose; changing the model view does not change the tracking angle. Side-view poses compare only the visible body side. The sculling model is an illustration of two-oar movement; it does not assess blades or wrists. Background colors show similarity: red means a different shape, orange means some adjustments, and green means the visible angles are close. They do not indicate safety. Seated poses and overlapping limbs may be harder to track. This experimental coach checks a few visible joint relationships. It cannot see pain, joint loading, balance, or every unsafe position. Camera angle, clothing, and occlusion can affect results. If you have an injury or health condition, ask a qualified professional which movements suit you.': '正面、¾ 和侧面按钮可旋转模型，方便观察。请按所选动作的提示摆放相机；切换模型视角不会改变识别角度。侧视动作只比较可见的一侧。双桨赛艇模型只是双桨动作示意，无法评估桨叶或手腕。背景颜色表示姿态相似程度：红色表示差异较大，橙色表示可作调整，绿色表示可见角度接近；它们不表示安全程度。坐姿和肢体遮挡可能影响识别。本实验性工具只检查少数可见关节关系，无法感知疼痛、关节受力、平衡或所有不安全姿势。相机角度、衣着和遮挡也会影响结果。如有伤病或健康问题，请咨询专业人士，了解适合自己的动作。',
+  'Drag to rotate or tilt the model, and scroll to zoom. Reset view restores the default framing. Follow the camera setup shown for the selected pose; changing the model view does not change the tracking angle. Side-view poses compare only the visible body side. The sculling model is an illustration of two-oar movement; it does not assess blades or wrists. Background colors show similarity: red means a different shape, orange means some adjustments, and green means the visible angles are close. They do not indicate safety. Seated poses and overlapping limbs may be harder to track. This experimental coach checks a few visible joint relationships. It cannot see pain, joint loading, balance, or every unsafe position. Camera angle, clothing, and occlusion can affect results. If you have an injury or health condition, ask a qualified professional which movements suit you.': '拖拽可旋转或俯仰模型，滚轮可缩放；恢复默认视角可还原初始取景。请按所选动作的提示摆放相机；切换模型视角不会改变识别角度。侧视动作只比较可见的一侧。双桨赛艇模型只是双桨动作示意，无法评估桨叶或手腕。背景颜色表示姿态相似程度：红色表示差异较大，橙色表示可作调整，绿色表示可见角度接近；它们不表示安全程度。坐姿和肢体遮挡可能影响识别。本实验性工具只检查少数可见关节关系，无法感知疼痛、关节受力、平衡或所有不安全姿势。相机角度、衣着和遮挡也会影响结果。如有伤病或健康问题，请咨询专业人士，了解适合自己的动作。',
   'More guidance:': '更多参考：', 'Downward Dog setup': '下犬式准备', 'NHS seated exercises': 'NHS 坐姿活动', 'and': '以及', 'stretching after exercise': '运动后拉伸',
   'Find my space': '开始练习',
   'Stretch': '拉伸', 'Gentle movement': '舒缓活动',

@@ -14,6 +14,7 @@ import { categoryLabels, practiceModes, sequenceFor } from './practice-modes.mjs
 import {createHand, orientHand, createWristDetail, wristExamples} from './hand-guide.mjs';
 import {createTennisHand,createWrappedHand,placeTennisHand,createRelaxedHand} from './tennis-hand.mjs';
 import {tennisGrip} from './tennis-grip.mjs';
+import {createAthleteModel} from './athlete-model.mjs';
 import {rowingGrip,clayGrip} from './equipment-grip.mjs';
 import {setLanguage, registerPoseTranslations, startLocalization, refreshLocalization} from './i18n.mjs?v=21';
 const selectedPose = () => poses.find(p => p.id === current);
@@ -23,8 +24,7 @@ const focusView = createFocusView($('stage'),()=>{presence.dismiss();focusView.s
 let lastPoseFrame=0;
 let flipped = false;
 let wristMode = 'aligned';
-let gripDetail = false;
-let wholeBoat = false;
+let viewZoom = 1;
 let guideUnavailable = false;
 let mobilityMode = 'stretch';
 const activeCategory = () => filter === 'mobility' ? mobilityMode : filter;
@@ -56,7 +56,7 @@ function selectPose(id, keepSide=false) {
  if(stream && selectedPose().demoOnly !== p.demoOnly)stopCamera();
  if(!p.wristStudy || !selectedPose().wristStudy)wristMode='aligned';
  current=id; if(!keepSide)flipped=false; stopTimer(); remaining=p.hold || 30; updateTimer();
- gripDetail=false;$('grip-detail').hidden=!p.motion;$('grip-detail').textContent=p.type==='tennis'?'Grip detail':'Hand detail';$('grip-detail').setAttribute('aria-pressed','false');
+ viewZoom=1;
  document.querySelector('.studio').classList.toggle('motion-study',!!p.motion);
  document.querySelector('.workspace').classList.toggle('motion-workspace',!!p.motion);
  $('hold-duration').textContent=p.demoOnly ? 'Step by step' : remaining+' sec';
@@ -64,7 +64,7 @@ function selectPose(id, keepSide=false) {
  $('pose-tag').textContent=`${categoryLabels[p.type].toUpperCase()} · ${p.area}`;
  $('pose-name').textContent=p.name; $('pose-description').textContent=p.description;
  $('pose-level').textContent=p.level || 'Easy';
- $('angle-label').textContent=p.demoOnly ? '↔ Drag to rotate · drag up/down to tilt' : isUpperPose(id) ? '↔ Front camera · upper body' : isSidePose(id) ? '↔ Side-on camera · full body' : '↔ Face your camera';
+ $('angle-label').textContent=p.demoOnly ? '↔ Drag to rotate · scroll to zoom' : isUpperPose(id) ? '↔ Front camera · upper body' : isSidePose(id) ? '↔ Side-on camera · full body' : '↔ Face your camera';
  $('camera-setup').textContent=p.demoOnly ? 'Place your camera where your body and hands are visible. Live preview only; no technique scoring.' : 'Camera setup: '+framing(id);
  $('stage-note').hidden=!guideUnavailable || !!stream;
  $('reference-label').textContent=p.type==='rowing' ? '真实实验室动捕 · 120 Hz · 手指与桨为约束示意' : p.motion ? '3D movement demonstration' : p.demoOnly ? 'Illustrative 3D movement study' : isUpperPose(id) ? '3D reference · upper-body estimate' : '3D reference · 2D pose estimate';
@@ -196,8 +196,6 @@ setInterval(()=>{if(stream && performance.now()-lastPoseFrame>500){focusView.set
 $('show-camera').onclick=()=>$('camera-dialog').showModal();
 $('close-camera').onclick=()=>$('camera-dialog').close();
 $('switch-side').onclick=()=>{flipped=!flipped;motionPlayer.mirror(flipped);sceneApi?.setPose(current);clearComparison();};
-$('whole-boat').onclick=()=>{wholeBoat=!wholeBoat;$('whole-boat').setAttribute('aria-pressed',String(wholeBoat));};
-$('grip-detail').onclick=()=>{gripDetail=!gripDetail;$('grip-detail').setAttribute('aria-pressed',String(gripDetail));};
 function drawComparison(ctx, p, result, width, height) {
  if(!p)return;
  const ghost=result ? projectReference(current,p,width,height,flipped) : null;
@@ -219,20 +217,17 @@ filter='rowing';document.querySelectorAll('[data-filter]').forEach(b=>b.classLis
 startLocalization();
 async function initThree() {
     try {
-        const THREE = await import('./vendor/three.module.js'); const host = $('three'); const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(34, 1, .1, 100); camera.position.set(0, 1.65, 6.8); camera.lookAt(0, 1.15, 0); const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.shadowMap.enabled = true; host.append(renderer.domElement); scene.add(new THREE.HemisphereLight(0xffffff, 0x6f7d59, 2.5)); const light = new THREE.DirectionalLight(0xffffff, 3); light.position.set(-3, 5, 4); scene.add(light); const group = new THREE.Group(); scene.add(group); const mat = new THREE.MeshStandardMaterial({ color: 0x6c8058, roughness: .65, metalness: .05 }); const jointmat = new THREE.MeshStandardMaterial({ color: 0xd8ecad, roughness: .55 }); const headmat = new THREE.MeshStandardMaterial({ color: 0x869974, roughness: .55 }); const floor = new THREE.Mesh(new THREE.CircleGeometry(1.4, 80), new THREE.MeshBasicMaterial({ color: 0xafbda1, transparent: true, opacity: .28 })); floor.rotation.x = -Math.PI / 2; floor.position.y = .02; scene.add(floor); const rings = new THREE.Mesh(new THREE.RingGeometry(1.18, 1.19, 100), new THREE.MeshBasicMaterial({ color: 0x96aa81, side: THREE.DoubleSide, transparent: true, opacity: .5 })); rings.rotation.x = -Math.PI / 2; rings.position.y = .03; scene.add(rings);
-        const links = [[0, 1], [0, 2], [2, 4], [1, 3], [3, 5], [0, 6], [1, 7], [6, 7], [6, 8], [8, 10], [7, 9], [9, 11]]; let target = getReference(current, flipped), neutralCoords = target.map(p => new THREE.Vector3(...p)), coords = neutralCoords.map(p=>p.clone()); const joints = coords.map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(.075, 20, 16), jointmat); group.add(m); return m }); const bones = links.map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(.058, .067, 1, 16), mat); group.add(m); return m }); const head = new THREE.Mesh(new THREE.SphereGeometry(.145, 32, 24), headmat); head.scale.y = 1.18; group.add(head); const neck = new THREE.Mesh(new THREE.CylinderGeometry(.055, .07, .18, 16), mat); group.add(neck); const torso = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 20), mat); torso.scale.set(.22, .35, .12); group.add(torso); const liveGroup=new THREE.Group();group.add(liveGroup);liveGroup.visible=false;
+        const THREE = await import('./vendor/three.module.js'); const host = $('three'); const scene = new THREE.Scene(); const camera = new THREE.PerspectiveCamera(34, 1, .1, 100); camera.position.set(0, 1.65, 6.8); camera.lookAt(0, 1.15, 0); const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.shadowMap.enabled = true; host.append(renderer.domElement); scene.add(new THREE.HemisphereLight(0xffffff, 0x6f7d59, 2.5)); const light = new THREE.DirectionalLight(0xffffff, 3); light.position.set(-3, 5, 4); scene.add(light); const group = new THREE.Group(); scene.add(group); const mat = new THREE.MeshStandardMaterial({ color: 0x6c8058, roughness: .65, metalness: .05 }); const floor = new THREE.Mesh(new THREE.CircleGeometry(1.4, 80), new THREE.MeshBasicMaterial({ color: 0xafbda1, transparent: true, opacity: .28 })); floor.rotation.x = -Math.PI / 2; floor.position.y = .02; scene.add(floor); const rings = new THREE.Mesh(new THREE.RingGeometry(1.18, 1.19, 100), new THREE.MeshBasicMaterial({ color: 0x96aa81, side: THREE.DoubleSide, transparent: true, opacity: .5 })); rings.rotation.x = -Math.PI / 2; rings.position.y = .03; scene.add(rings);
+        const links = [[0, 1], [0, 2], [2, 4], [1, 3], [3, 5], [0, 6], [1, 7], [6, 7], [6, 8], [8, 10], [7, 9], [9, 11]]; let target = getReference(current, flipped), neutralCoords = target.map(p => new THREE.Vector3(...p)), coords = neutralCoords.map(p=>p.clone()); const head=new THREE.Object3D(); const liveGroup=new THREE.Group();group.add(liveGroup);liveGroup.visible=false;
         const liveBones=links.map(()=>{const material=new THREE.MeshBasicMaterial({color:0x243950,depthTest:false});const mesh=new THREE.Mesh(new THREE.CylinderGeometry(.022,.022,1,10),material);mesh.renderOrder=3;liveGroup.add(mesh);return mesh;});
         const liveJoints=landmarkIds.map(()=>{const mesh=new THREE.Mesh(new THREE.SphereGeometry(.038,12,10),new THREE.MeshBasicMaterial({color:0x243950,depthTest:false}));mesh.renderOrder=4;liveGroup.add(mesh);return mesh;});
-        const handMaterial=new THREE.MeshStandardMaterial({color:0x91a979,roughness:.65});
-        const wristMaterial=new THREE.MeshStandardMaterial({color:0xd8ecad,roughness:.55});
+        const handMaterial=new THREE.MeshStandardMaterial({color:0xc9b79f,roughness:.8});
         const hands=[-1,1].map(side=>{const hand=createHand(THREE,handMaterial,side);group.add(hand.root);return {...hand,side,gripPoint:new THREE.Vector3()};});
         const tennisHands=[-1,1].map(side=>{const hand=createTennisHand(THREE,handMaterial,side);group.add(hand.root);return hand;});
         const relaxedHands=[-1,1].map(side=>{const hand=createRelaxedHand(THREE,handMaterial,side);group.add(hand.root);return hand;});
         const equipmentHands=Object.fromEntries([['rowing',rowingGrip],['clay',clayGrip]].map(([type,spec])=>[type,[-1,1].map(side=>{
             const hand=createWrappedHand(THREE,handMaterial,side,spec);group.add(hand.root);return hand;
         })]));
-        const forearmGeometries=[bones[2].geometry,bones[4].geometry];
-        const tennisForearmGeometry=new THREE.CylinderGeometry(.027,.052,1,20);
         const wristDetail=createWristDetail(THREE,$('wrist-detail'));wristDetail.setMode(wristMode);
         const propMaterial=new THREE.MeshStandardMaterial({color:0x9c8060,roughness:.8});
         const chairGroup=new THREE.Group();group.add(chairGroup);
@@ -265,9 +260,8 @@ async function initThree() {
         gunPart(new THREE.BoxGeometry(.18,.04,.05),gunWood,.62,-.012);
         for(const y of [.025,.073]){const barrel=gunPart(new THREE.CylinderGeometry(.023,.023,1.02,16),gunMetal,.76,y);barrel.rotation.z=Math.PI/2;}
         let motionSample=null;
-        const feet=[0,1].map(()=>{const mesh=new THREE.Mesh(new THREE.SphereGeometry(1,20,14),mat);mesh.scale.set(.065,.045,.13);group.add(mesh);return mesh;});
-        const pelvis=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),mat);pelvis.scale.set(.18,.10,.12);group.add(pelvis);
-        const nose=new THREE.Mesh(new THREE.SphereGeometry(.035,12,10),headmat);nose.position.set(0,0,.135);head.add(nose);
+        const feet=[new THREE.Object3D(),new THREE.Object3D()],pelvis=new THREE.Object3D();
+        const athlete=createAthleteModel(THREE,{body:mat,skin:handMaterial});group.add(athlete.root);
         const boatSeat=new THREE.Mesh(new THREE.BoxGeometry(.25,.055,.35),propMaterial);group.add(boatSeat);
         const oarlocks=sculls.map(item=>{
             const root=new THREE.Group();group.add(root);
@@ -284,17 +278,15 @@ async function initThree() {
             boatSeat.visible=type==='rowing';const seatY=motionSample?.captured?(coords[6].y+coords[7].y)/2-.075:.56;boatSeat.position.set((coords[6].x+coords[7].x)/2,seatY,0);hull.position.y=motionSample?.captured?.08:.52;
             oarlocks.forEach((lock,i)=>{lock.root.visible=type==='rowing';if(motionSample?.captured){lock.root.position.fromArray(motionSample.oars[i].pivot).sub(lock.pivot);}else lock.root.position.set(0,0,0);});
             shotgun.visible=type==='clay';
-            [2,4].forEach((index,i)=>{bones[index].geometry=motionSample?tennisForearmGeometry:forearmGeometries[i];});
             for(const hand of hands){
                 const w=hand.side<0?4:5,e=hand.side<0?2:3;
                 const showHands=type==='rowing'||type==='clay'||type==='tennis';
                 const side=hand.side<0?0:1,tennis=type==='tennis'&&!!motionSample,equipped=!!motionSample?.equipmentHands;
-                hand.root.visible=showHands&&!tennis&&!equipped;joints[w].scale.setScalar((tennis||equipped)?.34:showHands?.6:1);
-                joints[w].material=showHands?wristMaterial:jointmat;
+                hand.root.visible=showHands&&!tennis&&!equipped;
                 const gripFrame=motionSample?.tennisHands?.[side];
                 const meshSide=flipped?1-side:side;
                 tennisHands[meshSide].root.visible=tennis&&!!gripFrame;
-                relaxedHands[meshSide].root.visible=tennis&&!gripFrame;
+                relaxedHands[meshSide].root.visible=(tennis&&!gripFrame)||!showHands;
                 for(const [sport,models]of Object.entries(equipmentHands))models[meshSide].root.visible=equipped&&type===sport;
                 if(equipped){
                     const frame=motionSample.equipmentHands[side];
@@ -311,7 +303,7 @@ async function initThree() {
                     }
                     continue;
                 }
-                if(!showHands)continue;
+                if(!showHands){orientHand(THREE,relaxedHands[meshSide],coords[w],coords[w].clone().sub(coords[e]));continue;}
                 const direction=coords[w].clone().sub(coords[e]);
                 if(type==='rowing' && wristExamples[wristMode].keepGrip){
                     const neutralDirection=neutralCoords[w].clone().sub(neutralCoords[e]).normalize();
@@ -332,7 +324,6 @@ async function initThree() {
                 shotgun.position.copy(rear);shotgun.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,z));
                 shotgun.scale.setScalar(1);
             }
-            wristMaterial.color.set(wristMode==='aligned'?0xd8ecad:0xe6b878);
             for(const item of sculls){
                 item.shaft.visible=item.handle.visible=item.blade.visible=type==='rowing';
                 if(type!=='rowing')continue;
@@ -368,10 +359,18 @@ async function initThree() {
             }
         }
         let hostSize={width:host.clientWidth,height:host.clientHeight};
-        const savedViews=new Map();
         let rotation=0,tilt=0,cameraTilt=0,drag=null;
         const canvas=renderer.domElement;
-        canvas.setAttribute('aria-label','拖拽可360度旋转，上下拖拽调整俯仰视角');
+        canvas.setAttribute('aria-label','拖拽旋转，上下拖拽调整俯仰，滚轮缩放，双击恢复默认视角');
+        canvas.addEventListener('wheel',event=>{
+            event.preventDefault();
+            // Normalize mouse wheels (lines/pages) and trackpads (pixels).
+            const unit=event.deltaMode===1?16:event.deltaMode===2?Math.max(hostSize.height,1):1;
+            const pixels=THREE.MathUtils.clamp(event.deltaY*unit,-240,240);
+            viewZoom=THREE.MathUtils.clamp(viewZoom*Math.exp(pixels*.0018),.18,4);
+            if(pixels!==0)$('reset-view').hidden=false;
+        },{passive:false});
+        canvas.addEventListener('dblclick',resetView);
         canvas.addEventListener('pointerdown',event=>{
             if(!event.isPrimary||event.button!==0)return;
             drag={id:event.pointerId,x:event.clientX,y:event.clientY};
@@ -379,26 +378,28 @@ async function initThree() {
         });
         canvas.addEventListener('pointermove',event=>{
             if(!drag||event.pointerId!==drag.id)return;
+            if(event.clientX!==drag.x||event.clientY!==drag.y)$('reset-view').hidden=false;
             rotation+=(event.clientX-drag.x)*Math.PI*2/Math.max(hostSize.width,1);
             tilt=THREE.MathUtils.clamp(tilt+(event.clientY-drag.y)*Math.PI/Math.max(hostSize.height,1),-Math.PI/2+.08,Math.PI/2-.08);
             drag.x=event.clientX;drag.y=event.clientY;
-            document.querySelectorAll('[data-model-view]').forEach(button=>button.setAttribute('aria-pressed','false'));
             event.preventDefault();
         });
         const endDrag=event=>{if(drag&&event.pointerId===drag.id){drag=null;canvas.classList.remove('dragging');if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);}};
         for(const name of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(name,endDrag);
-        function chooseView(view){tilt=0;savedViews.set(current,view);const native=isSidePose(current)?'side':'front';rotation=view==='three-quarter'?Math.PI/4:view===native?0:Math.PI/2;document.querySelectorAll('[data-model-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.modelView===view)));}
-        document.querySelectorAll('[data-model-view]').forEach(b=>b.onclick=()=>chooseView(b.dataset.modelView));
-        $('rotate').onclick=()=>{rotation+=Math.PI/4;document.querySelectorAll('[data-model-view]').forEach(b=>b.setAttribute('aria-pressed','false'));};
-        chooseView(['rowing','clay'].includes(selectedPose().type)?'three-quarter':isSidePose(current)?'side':'front');
+        function resetView(){
+            viewZoom=1;tilt=0;
+            rotation=['rowing','clay'].includes(selectedPose().type)?Math.PI/4:0;
+            $('reset-view').hidden=true;
+        }
+        $('reset-view').onclick=resetView;
+        $('rotate').onclick=()=>{rotation+=Math.PI/4;$('reset-view').hidden=false;};
+        resetView();
         function setModelTheme(){
             const css=getComputedStyle(document.documentElement),color=key=>css.getPropertyValue(key).trim();
             mat.color.set(liveGroup.visible?'#dde5d6':color('--figure-body'));
-            jointmat.color.set(liveGroup.visible?'#f0f4e9':color('--figure-joint'));
-            headmat.color.set(liveGroup.visible?'#e5ebdf':color('--figure-head'));
-            handMaterial.color.set(color('--figure-head'));floor.material.color.set(color('--figure-body'));rings.material.color.set(color('--figure-joint'));
+            handMaterial.color.set(liveGroup.visible?'#ded9ce':'#c9b79f');floor.material.color.set(color('--figure-body'));rings.material.color.set(color('--figure-joint'));
         }
-        sceneApi = { setTheme:setModelTheme, setWristMode(mode){wristDetail.setMode(mode);}, setPose(id) { target = getReference(id, flipped);chooseView(savedViews.get(id)||(['rowing','clay'].includes(selectedPose().type)?'three-quarter':isSidePose(id)?'side':'front')); }, setLive(values,adjust=[]) {
+        sceneApi = { setTheme:setModelTheme, setWristMode(mode){wristDetail.setMode(mode);}, setPose(id) { target = getReference(id, flipped);resetView(); }, setLive(values,adjust=[]) {
             liveGroup.visible=!!values;setModelTheme();if(!values)return;
             const pts=values.map(v=>v?new THREE.Vector3(...v):null);liveJoints.forEach((m,i)=>{m.visible=!!pts[i];if(pts[i])m.position.copy(pts[i]);});
             links.forEach(([a,b],i)=>{const m=liveBones[i];m.visible=!!pts[a]&&!!pts[b];if(!m.visible)return;const d=pts[b].clone().sub(pts[a]);m.position.copy(pts[a]).add(pts[b]).multiplyScalar(.5);m.scale.y=d.length();m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());m.material.color.set(adjust.includes(landmarkIds[a])||adjust.includes(landmarkIds[b])?0x854316:0x243950);});
@@ -414,34 +415,27 @@ async function initThree() {
                 for(const i of [4,5])coords[i].y+=example.wristLift;
                 for(const i of [2,3])coords[i].y+=example.elbowLift;
             }
-            coords.forEach((v,i)=>joints[i].position.copy(v)); links.forEach(([a, b], i) => { const d = new THREE.Vector3().subVectors(coords[b], coords[a]); bones[i].position.copy(coords[a]).add(coords[b]).multiplyScalar(.5); bones[i].scale.y = d.length(); bones[i].quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()) }); const shoulder = coords[0].clone().add(coords[1]).multiplyScalar(.5); const hip=coords[6].clone().add(coords[7]).multiplyScalar(.5);const axis=shoulder.clone().sub(hip).normalize();head.position.copy(shoulder).addScaledVector(axis,.31);neck.position.copy(shoulder).addScaledVector(axis,.12);head.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),axis);neck.quaternion.copy(head.quaternion); torso.position.copy(shoulder).add(coords[6].clone().add(coords[7]).multiplyScalar(.5)).multiplyScalar(.5); const lateral=coords[1].clone().sub(coords[0]).normalize();
+            const shoulder=coords[0].clone().add(coords[1]).multiplyScalar(.5);
+            const hip=coords[6].clone().add(coords[7]).multiplyScalar(.5);
+            const axis=shoulder.clone().sub(hip).normalize();
+            const lateral=coords[1].clone().sub(coords[0]).normalize();
             const forward=new THREE.Vector3().crossVectors(lateral,axis).normalize();
             lateral.crossVectors(axis,forward).normalize();
-            const bodyRotation=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(lateral,axis,forward));
-            torso.quaternion.copy(bodyRotation);head.quaternion.copy(bodyRotation);neck.quaternion.copy(bodyRotation);
+            head.position.copy(shoulder).addScaledVector(axis,.31);
+            head.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(lateral,axis,forward));
             if(motionSample?.captured){
-                head.position.fromArray(motionSample.headPosition);neck.position.fromArray(motionSample.neckPosition);head.quaternion.fromArray(motionSample.headRotation);neck.quaternion.copy(head.quaternion);torso.quaternion.fromArray(motionSample.torsoRotation);
-                torso.scale.set(coords[0].distanceTo(coords[1])*.52,shoulder.distanceTo(hip)*.47,.10);
-                joints.forEach(m=>m.scale.setScalar(.68));
-            }else{torso.scale.set(.22,.35,.12);joints.forEach(m=>m.scale.setScalar(1));}
+                head.position.fromArray(motionSample.headPosition);head.quaternion.fromArray(motionSample.headRotation);
+            }
             pelvis.visible=!!motionSample;pelvis.position.copy(hip);
             const hipLateral=coords[7].clone().sub(coords[6]).normalize(),hipForward=new THREE.Vector3().crossVectors(hipLateral,new THREE.Vector3(0,1,0)).normalize();
             pelvis.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(hipLateral,new THREE.Vector3(0,1,0),hipForward));if(motionSample?.captured)pelvis.quaternion.fromArray(motionSample.pelvisRotation);
             feet.forEach((foot,i)=>{foot.visible=!!motionSample;foot.position.copy(coords[10+i]).addScaledVector(hipForward,.06);foot.position.y-=.03;foot.quaternion.copy(pelvis.quaternion);if(motionSample?.toePositions){const toe=new THREE.Vector3(...motionSample.toePositions[i]);foot.position.copy(coords[10+i]).lerp(toe,.5);const direction=toe.sub(coords[10+i]).normalize();foot.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),direction);}});
             group.rotation.y += (rotation - group.rotation.y) * (drag?1:1-Math.exp(-8*delta));cameraTilt+=(tilt-cameraTilt)*(drag?1:1-Math.exp(-8*delta));updateProps();
+            athlete.update(coords,motionSample,{head,pelvis,feet});
             let boundPoints=[...coords,head.position.clone().add(new THREE.Vector3(0,.2,0))];
             if(shotgun.visible)for(const x of [-.52,1.30])for(const y of [-.15,.13])boundPoints.push(new THREE.Vector3(x,y,0).multiply(shotgun.scale).applyQuaternion(shotgun.quaternion).add(shotgun.position));
             if(racket.visible)boundPoints.push(new THREE.Vector3(0,.75,0).applyQuaternion(racket.quaternion).add(racket.position));
-            if(hull.visible&&(!motionSample?.captured||wholeBoat))for(const item of sculls)for(const sign of [-1,1])boundPoints.push(item.end.clone().add(new THREE.Vector3(.24*sign,.06*sign,.13*sign)));
-            const detailHands=motionSample?.tennisHands||motionSample?.equipmentHands;
-            if(gripDetail&&detailHands){
-                boundPoints=[];
-                detailHands.forEach((hand,side)=>{
-                    if(!hand)return;
-                    const center=new THREE.Vector3(...hand.center),axis=new THREE.Vector3(...hand.y);
-                    boundPoints.push(coords[4+side],coords[4+side].clone().lerp(coords[2+side],.45),center.clone().addScaledVector(axis,.09),center.clone().addScaledVector(axis,-.09));
-                });
-            }
+            if(hull.visible&&!motionSample?.captured)for(const item of sculls)for(const sign of [-1,1])boundPoints.push(item.end.clone().add(new THREE.Vector3(.24*sign,.06*sign,.13*sign)));
             // Fit in camera space so changing elevation cannot clip the head or hands.
             const yaw=group.rotation.y,cy=Math.cos(yaw),sy=Math.sin(yaw);
             const world=boundPoints.map(p=>new THREE.Vector3(p.x*cy+p.z*sy,p.y,-p.x*sy+p.z*cy));
@@ -455,7 +449,7 @@ async function initThree() {
                 const screenY=y*ct-z*st,depth=y*st+z*ct;
                 distance=Math.max(distance,depth+Math.abs(x)/(tan*camera.aspect*usableWidth),depth+Math.abs(screenY)/(tan*usableHeight));
             }
-            const desired=center.clone().add(new THREE.Vector3(0,st,ct).multiplyScalar(distance+.12));
+            const desired=center.clone().add(new THREE.Vector3(0,st,ct).multiplyScalar(Math.max(.35,(distance+.12)*viewZoom)));
             camera.position.lerp(desired,drag?1:1-Math.exp(-8*delta));camera.lookAt(center);
             renderer.render(scene, camera) });
     } catch (e) { guideUnavailable = true; $('stage-note').hidden = false; $('stage-note').innerHTML = '3D guide could not load.<small>You can still follow the written cues or enable your camera.</small>'; $('rotate').disabled = true; }

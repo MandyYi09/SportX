@@ -16,8 +16,8 @@ const descriptions = {
  swing:['Inspect the forward swing, follow-through and return.','观察向前挥拍、随挥收拍及复位。'],
  full:['Watch the complete movement as one continuous sequence.','连续播放这一次完整动作。'],
 };
-const cues=['Play slowly or drag the timeline to inspect a moment.','Switch between front and side views to inspect the movement.','Select a step to watch its independent 3D demonstration.'];
-const cuesZh=['可慢放或拖动时间轴，观察某个瞬间。','切换正面、侧面视角，观察身体与器械的动作。','选择任一分解动作，观看独立的三维演示。'];
+const cues=['Play slowly or drag the timeline to inspect a moment.','Drag to inspect the movement from different angles; scroll to zoom.','Select a step to watch its independent 3D demonstration.'];
+const cuesZh=['可慢放或拖动时间轴，观察某个瞬间。','拖拽可从不同角度观察身体与器械，滚轮可缩放。','选择任一分解动作，观看独立的三维演示。'];
 const gentle = {type:'gentle',area:'SEATED UPPER BODY',icon:'⌑',tracking:'upper',sequence:'gentle',level:'Seated',hold:10};
 export const practicePoses = [
  ...motionClips.map(clip=>({
