@@ -8,7 +8,23 @@ export function setLanguage(value) {
 
 // English remains the source copy. These strings are only used when Chinese is selected.
 const zh = {
+  'Expert demonstration':'专家示范', 'Expert demonstration · Backswing':'专家示范 · 引拍',
+  'Expert demonstration · Racket drop':'专家示范 · 降拍', 'Expert demonstration · Swing & follow-through':'专家示范 · 挥拍与随挥',
+  'Model gender':'模型性别','Model':'模型','Male':'男版','Female':'女版',
+  'Drag to rotate':'拖拽旋转','scroll to zoom':'滚轮缩放',
+  'Movement demonstration could not load. Please reload.':'动作示范加载失败，请刷新页面。',
+  '↔ Side-on camera · full body':'↔ 侧面相机 · 全身入镜',
+  '↔ Front camera · upper body':'↔ 正面相机 · 上半身入镜',
+  'Drag to rotate, drag vertically to tilt, scroll to zoom, double-click to reset the view':'拖拽旋转，上下拖拽调整俯仰，滚轮缩放，双击恢复默认视角',
+  'Camera lens': '摄像头镜头', 'Camera zoom': '摄像头变焦',
+  'Flip front / back camera': '翻转相机：切换前后置',
+  'Next lens on this side': '切换当前方向的镜头',
+  'Zoom could not be confirmed. Try each rear lens to find the widest view.': '无法确认变焦是否生效。请逐个尝试后置镜头，选择取景最广的一个。',
+  'Starts at the widest supported zoom. Choose another lens for a wider view.': '默认使用支持的最广取景。可选择其他镜头，尝试更广的范围。',
+  'Zoom is unavailable for this camera. Try another lens for a wider view.': '此摄像头不支持变焦调节，可尝试其他镜头扩大取景范围。',
   'Rotate': '旋转', 'Reset view': '恢复默认视角',
+  'Static camera · Off': '摄像头静止 · 关', 'Static camera · On': '摄像头静止 · 开',
+  'Switch camera': '切换摄像头',
   'Drag to rotate · scroll to zoom': '拖拽旋转 · 滚轮缩放',
   'Mobility': '拉伸与舒缓', 'Choose your mode': '选择练习模式', 'Mobility mode': '拉伸与舒缓模式', 'Gentle mode': '舒缓模式',
   'Standing and seated stretches for your shoulders, torso and legs.': '通过站姿和坐姿拉伸，伸展肩部、躯干和腿部。',
@@ -190,6 +206,7 @@ export function t(value) {
   const exact = zh[value.replace(/\s+/g, ' ').trim()];
   if (exact) return exact;
   let match;
+  if ((match = value.match(/^([\d.]+) \/ ([\d.]+) s$/))) return `${match[1]} / ${match[2]} 秒`;
   if ((match = value.match(/^(\d+) movements$/))) return `${match[1]} 个动作`;
   if ((match = value.match(/^(\d+) sec$/))) return `${match[1]} 秒`;
   if ((match = value.match(/^(\d+)\. (.+)$/))) return `${match[1]}. ${t(match[2])}`;

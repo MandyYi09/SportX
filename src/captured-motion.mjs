@@ -1,9 +1,11 @@
 import {Quaternion,Vector3} from './vendor/three.module.js';
 import {rowingAttachment} from './equipment-grip.mjs';
+import {captureTracks,captureWindows,captureReferences} from './capture-catalog.mjs';
+import {capturedTennis,capturedClay,reflectCaptured} from './captured-props.mjs';
 const cache=new Map();
 const landmarkNames=['LeftArm','RightArm','LeftForeArm','RightForeArm','LeftHand','RightHand','LeftUpLeg','RightUpLeg','LeftLeg','RightLeg','LeftFoot','RightFoot'];
 export async function loadCapturedMotions(){
- const ids=['rowing-arms','rowing-half','rowing-full'];
+ const ids=captureTracks;
  await Promise.all(ids.map(async id=>{
   const base=new URL(`./assets/mocap/${id}`,import.meta.url);
   const metadata=await fetch(`${base}.json`);if(!metadata.ok)throw Error(`Missing motion metadata: ${id}`);
@@ -11,7 +13,21 @@ export async function loadCapturedMotions(){
   if(!response.ok)throw Error(`Missing motion samples: ${id}`);
   const data=new Float32Array(await response.arrayBuffer());
   if(data.length!==meta.frames*meta.stride)throw Error(`Invalid motion samples: ${id}`);
-  cache.set(id,makeTrack(meta,data));sampleCapturedMotion(id,0);
+  const track=makeTrack(meta,data);
+  evaluateTrack(track,meta.sport==='clay'?3:0);
+  const {positions,rotations,indices}=track;
+  const axis=positions[indices.LeftHand].clone().sub(positions[indices.RightHand]).normalize();
+  track.localShaft=axis.applyQuaternion(rotations[indices.RightHand].clone().invert());
+  if(meta.sport==='clay'){
+   // Calibrate only the prop's carry axis. Stored samples and body transforms
+   // remain untouched; the rigid prop follows RightHand when the other releases.
+   const coords=landmarkNames.map(name=>positions[indices[name]].toArray());
+   const bodyUp=new Vector3(0,1,0).applyQuaternion(rotations[indices.Spine3]);
+   const fitted=capturedClay(coords,bodyUp,rotations[indices.RightHand],track.localShaft);
+   track.localShaft=new Vector3(...fitted.clayProp.x).applyQuaternion(rotations[indices.RightHand].clone().invert());
+  }
+  evaluateTrack(track,0);track.pivotHeight=(positions[indices.LeftHand].y+positions[indices.RightHand].y)/2;
+  cache.set(id,track);
  }));
  return ids.map(id=>cache.get(id).meta);
 }
@@ -20,11 +36,14 @@ function makeTrack(meta,data){
  return {meta,data,indices,positions:Array.from({length:count},()=>new Vector3()),rotations:Array.from({length:count},()=>new Quaternion()),
   local:new Quaternion(),other:new Quaternion(),offset:new Vector3(),global:new Quaternion().setFromAxisAngle(new Vector3(0,1,0),meta.alignment.yaw),translation:new Vector3(...meta.alignment.translation)};
 }
-export function capturedDuration(id){return cache.get(id)?.meta.duration??null;}
-export function sampleCapturedMotion(id,elapsed=0,flipped=false){
- const track=cache.get(id);if(!track)return null;
+export function capturedWindow(id){
+ const window=captureWindows[id],track=window&&cache.get(window.track);if(!track)return null;
+ return {...window,end:Math.min(window.end??track.meta.duration,track.meta.duration),frameRate:1/track.meta.frameTime};
+}
+export function capturedDuration(id){const window=capturedWindow(id);return window?window.end-window.start:null;}
+function evaluateTrack(track,time){
  const {meta,data,positions,rotations,indices,local,other,offset,global,translation}=track;
- const time=Math.max(0,Math.min(meta.duration,elapsed)),fraction=time/meta.frameTime;
+ const fraction=Math.max(0,Math.min(meta.duration,time))/meta.frameTime;
  const a=Math.min(meta.frames-1,Math.floor(fraction)),b=Math.min(meta.frames-1,a+1),alpha=fraction-a;
  for(let i=0;i<meta.names.length;i++){
   const parent=meta.parents[i],ia=a*meta.stride+3+i*4,ib=b*meta.stride+3+i*4;
@@ -37,20 +56,29 @@ export function sampleCapturedMotion(id,elapsed=0,flipped=false){
    rotations[i].copy(rotations[parent]).multiply(local);
   }
  }
+}
+export function sampleCapturedMotion(id,elapsed=0,flipped=false){
+ const window=capturedWindow(id);if(!window)return null;
+ const track=cache.get(window.track),{meta,positions,rotations,indices}=track;
+ const time=window.start+Math.max(0,Math.min(window.end-window.start,Number.isFinite(elapsed)?elapsed:0));
+ evaluateTrack(track,time);
  const coords=landmarkNames.map(name=>positions[indices[name]].toArray());
  const point=name=>positions[indices[name]].toArray();
- const oarHeight=track.pivotHeight??=(coords[4][1]+coords[5][1])/2;
- // In this BVH alignment anatomical left is +Z, unlike the authored rig.
- const oars=[1,-1].map((side,i)=>rowingAttachment(coords[4+i],side,[-.13,oarHeight,side*.64]));
- // Body joints are measured. Finger wrap and oarlocks retain the illustrative UI geometry.
- const result={coords,oars,equipmentHands:oars.map(o=>o.hand),racketDirection:[0,1,0],racketPosition:coords[5],
-  headPosition:point('Head'),neckPosition:point('Neck'),spine:['Spine','Spine1','Spine2','Spine3','Neck'].map(point),toePositions:[point('LeftToeBase'),point('RightToeBase')],
-  headRotation:rotations[indices.Head].toArray(),torsoRotation:rotations[indices.Spine3].toArray(),pelvisRotation:rotations[indices.Hips].toArray(),captured:true,sourceTime:time+meta.frameTime,frameRate:1/meta.frameTime,source:meta.source};
+ // Body joints are measured; equipment and fingers are explicitly illustrative.
+ let result={coords,headPosition:point('Head'),neckPosition:point('Neck'),spine:['Spine','Spine1','Spine2','Spine3','Neck'].map(point),toePositions:[point('LeftToeBase'),point('RightToeBase')],
+  headRotation:rotations[indices.Head].toArray(),torsoRotation:rotations[indices.Spine3].toArray(),pelvisRotation:rotations[indices.Hips].toArray(),captured:true,sourceTime:time+meta.frameTime,captureTime:time,gazeReferenceActive:!!captureReferences[id]&&time>=captureReferences[id].captureMountedAt,frameRate:1/meta.frameTime,source:meta.source};
+ if(window.track.startsWith('rowing')){
+  const oars=[1,-1].map((side,i)=>rowingAttachment(coords[4+i],side,[-.13,track.pivotHeight,side*.64]));
+  Object.assign(result,{oars,equipmentHands:oars.map(o=>o.hand)});
+ }else if(meta.sport==='tennis'){
+  Object.assign(result,capturedTennis(coords,rotations[indices.RightHand],track.localShaft,window.track==='tennis-backhand'));
+ }else if(meta.sport==='clay'){
+  const up=new Vector3(0,1,0).applyQuaternion(rotations[indices.Spine3]);
+  Object.assign(result,capturedClay(coords,up,rotations[indices.RightHand],track.localShaft));
+ }
  if(flipped){
-  const reflect=v=>[-v[0],v[1],v[2]];
-  result.coords=result.coords.map((_,i)=>reflect(coords[i%2===0?i+1:i-1]));
-  result.headPosition=reflect(result.headPosition);result.neckPosition=reflect(result.neckPosition);result.spine=result.spine.map(reflect);result.toePositions=result.toePositions.slice().reverse().map(reflect);
-  result.oars=[-1,1].map((side,i)=>rowingAttachment(result.coords[4+i],side,[.13,oarHeight,side*.64]));result.equipmentHands=result.oars.map(o=>o.hand);
+  result=reflectCaptured(result);
+  if(result.oars){result.oars=[-1,1].map((side,i)=>rowingAttachment(result.coords[4+i],side,[.13,track.pivotHeight,side*.64]));result.equipmentHands=result.oars.map(o=>o.hand);}
  }
  return result;
 }

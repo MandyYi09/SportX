@@ -11,12 +11,12 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
 await send('Runtime.enable');await send('Page.enable');
 await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
 await send('Page.navigate',{url:'http://127.0.0.1:5191'});await delay(6000);
-console.log('PAGE',await run('document.body.innerText.slice(0,300)'));
+console.log('CAPTURES',await run(`(async()=>{const {captureWindows}=await import('./capture-catalog.mjs');const {sampleCapturedMotion,capturedDuration}=await import('./captured-motion.mjs');return Object.keys(captureWindows).map(id=>{const s=sampleCapturedMotion(id,1);if(!s?.captured)throw Error('Missing capture '+id);return {id,duration:capturedDuration(id),source:s.source};});})()`));
 await run(`document.querySelectorAll('dialog[open]').forEach(d=>d.close())`);
 await run(`document.querySelector('[data-filter="all"]').click()`);
 await fs.mkdir('artifacts',{recursive:true});
-for(const pose of ['rowing-full','tennis-forehand-full','clay-full']){
- await run(`document.querySelector('[data-pose="${pose}"]').click();document.getElementById('motion-seek').value='3';document.getElementById('motion-seek').dispatchEvent(new Event('input'));`);
+for(const pose of ['rowing-full','tennis-forehand-full','tennis-backhand-full','clay-full','clay-ready','clay-mount','clay-lower']){
+ await run(`document.querySelector('[data-pose="${pose}"]').click();document.getElementById('motion-seek').value='1.5';document.getElementById('motion-seek').dispatchEvent(new Event('input'));`);
  await delay(900);
  await fs.writeFile(`artifacts/athlete-${pose}.png`,Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
  console.log(pose,await run(`({canvas:document.querySelectorAll('#three canvas').length,note:document.getElementById('stage-note').textContent,time:document.getElementById('motion-time').textContent})`));

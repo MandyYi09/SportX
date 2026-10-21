@@ -147,7 +147,7 @@ function clayState(clip,t) {
  const tracks={
   'clay-ready':[[1.8,low],[2.7,readyHold],[6.3,readyHold]],
   'clay-mount':[[1.5,low],[2.3,readyHold],[3.7,raised],[7.8,raised]],
-  'clay-lower':[[10.5,raised],[11.5,raised],[12.7,low],[13.3,low]],
+  'clay-lower':[[0,low],[2.2,low],[3.2,readyHold],[4.5,raised],[12,raised],[13.4,low],[14.325,low]],
   'clay-full':[[.5,low],[2,readyHold],[4.8,raised],[9,{...raised,yaw:.40}],[14,{...raised,yaw:-.15}],[18.5,raised],[20.3,low],[21.5,low]],
  };
  return interpolateTrack(tracks[clip.track],t);

@@ -1,21 +1,24 @@
 import {loadCapturedMotions} from './captured-motion.mjs';
-try { await loadCapturedMotions(); } catch(error) { document.getElementById('stage-note').hidden=false; document.getElementById('stage-note').textContent='真实动捕加载失败：'+error.message; throw error; }
+try { await loadCapturedMotions(); } catch(error) { document.getElementById('stage-note').hidden=false; document.getElementById('stage-note').textContent='Movement demonstration could not load. Please reload.'; throw error; }
 import {prepareLandmarks,isSidePose,isUpperPose,requiredLandmarks} from './tracking-view.mjs';
 import { PosePresence } from './pose-presence.mjs';
+import {createCameraControls,preferredRearLens,cameraDirection,sameDirectionDevices,setCameraIcon} from './camera-controls.mjs';
 import { createFocusView } from './focus-view.mjs';
 import { evaluate } from './pose-rules.mjs';
 import { getReference, landmarkIds } from './reference.mjs';
 import { comparePose, projectReference, normalizedLive } from './comparison.mjs';
-import {createMotionPlayer} from './motion-player.mjs?v=22';
+import {createMotionPlayer} from './motion-player.mjs?v=27';
 const $ = id => document.getElementById(id);
 const motionPlayer=createMotionPlayer();
 import { poses } from './exercises.mjs';
 import { categoryLabels, practiceModes, sequenceFor } from './practice-modes.mjs';
 import {createHand, orientHand, createWristDetail, wristExamples} from './hand-guide.mjs';
 import {createTennisHand,createWrappedHand,placeTennisHand,createRelaxedHand} from './tennis-hand.mjs';
-import {tennisGrip} from './tennis-grip.mjs';
+import {createTennisRacket,racketEnvelope} from './tennis-racket.mjs';
 import {createAthleteModel} from './athlete-model.mjs';
-import {rowingGrip,clayGrip} from './equipment-grip.mjs';
+import {fitYogaArms} from './yoga-proportions.mjs';
+import {createShootingProp,shootingGrip,shootingRearGrip,shootingEnvelope} from './shooting-model.mjs';
+import {rowingGrip} from './equipment-grip.mjs';
 import {setLanguage, registerPoseTranslations, startLocalization, refreshLocalization} from './i18n.mjs?v=21';
 const selectedPose = () => poses.find(p => p.id === current);
 const framing = id => isUpperPose(id) ? 'Face the camera with shoulders, elbows, wrists and hips visible. Feet can stay out of frame.' : isSidePose(id) ? 'Turn side-on with your whole body visible.' : 'Face the camera with your whole body visible.';
@@ -29,6 +32,40 @@ let guideUnavailable = false;
 let mobilityMode = 'stretch';
 const activeCategory = () => filter === 'mobility' ? mobilityMode : filter;
 let current = 'reach', filter = 'all', stream = null, landmarker = null, starting = false, runId = 0, lastVideo = -1, lastDetect = 0, lastFeedback = 0, remaining = 30, timerId = null, sceneApi = null;
+let modelGender='male';
+try{modelGender=localStorage.getItem('fitai-model-gender')==='female'?'female':'male';}catch{}
+let cameraFacing='user',cameraDeviceId=null,switchingCamera=false;
+const cameraSwitchButtons=()=>[$('demo-camera-switch'),$('camera-switch')];
+const cameraFlipButtons=[];
+for(const button of cameraSwitchButtons()){
+    setCameraIcon(button,'switch','Next lens on this side');
+    const flip=document.createElement('button');flip.type='button';flip.hidden=true;
+    setCameraIcon(flip,'flip','Flip front / back camera');
+    button.before(flip);cameraFlipButtons.push(flip);
+    flip.onclick=()=>switchCamera(null,true);
+}
+setCameraIcon($('demo-camera-stop'),'stop','Stop camera');
+const dialogStop=document.createElement('button');dialogStop.type='button';
+setCameraIcon(dialogStop,'stop','Stop camera');dialogStop.onclick=()=>stopCamera();
+$('close-camera').before(dialogStop);
+function setCameraButton(label){
+    if(label==='Stop camera'){setCameraIcon($('camera'),'stop','Stop camera');}
+    else{$('camera').textContent=label;$('camera').classList.remove('camera-icon-button');delete $('camera').dataset.cameraIcon;$('camera').removeAttribute('title');$('camera').removeAttribute('aria-label');}
+}
+const cameraControls=createCameraControls([$('demo-camera'),$('camera-dialog')],deviceId=>switchCamera(deviceId));
+async function updateCameraDevices(){
+    let devices=[];
+    try{devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');}catch{}
+    const settings=stream?.getVideoTracks()[0].getSettings() || {};
+    const count=sameDirectionDevices(devices,settings).length;
+    cameraSwitchButtons().forEach(button=>{button.hidden=!stream||count<2;button.disabled=switchingCamera;});
+    const direction=settings.facingMode || cameraDirection(devices.find(d=>d.deviceId===settings.deviceId)) || cameraFacing;
+    const opposite=direction==='user'?'environment':'user';
+    let canFlip=devices.some(d=>cameraDirection(d)===opposite);
+    try{canFlip ||= stream?.getVideoTracks()[0].getCapabilities?.().facingMode?.includes(opposite);}catch{}
+    cameraFlipButtons.forEach(button=>{button.hidden=!stream||!canFlip;button.disabled=switchingCamera;});
+    dialogStop.hidden=!stream;
+}
 function setWristMode(mode) {
  wristMode = selectedPose().wristStudy && wristExamples[mode] ? mode : 'aligned';
  document.querySelectorAll('[data-wrist]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.wrist===wristMode)));
@@ -39,6 +76,7 @@ function setWristMode(mode) {
 }
 document.querySelectorAll('[data-wrist]').forEach(b=>b.onclick=()=>setWristMode(b.dataset.wrist));
 function drawCards() {
+ const listScroll=$('poses').scrollLeft;
  const category=activeCategory();
  document.documentElement.dataset.theme=filter==='all'?'all':filter==='mobility'?'mobility':category;
  sceneApi?.setTheme();
@@ -50,6 +88,11 @@ function drawCards() {
  $('category-intro').textContent=practiceModes[category]?.title || '';
  $('poses').innerHTML=shown.map(p => `<button class="pose-card ${p.id === current ? 'active' : ''}" data-pose="${p.id}" aria-pressed="${p.id === current}"><span class="pose-icon" aria-hidden="true">${p.icon}</span><span><strong>${p.name}</strong><small>${categoryLabels[p.type]} · ${p.demoOnly ? 'Demo' : (p.hold || 30)+' sec'}</small></span><span class="arrow">↗</span></button>`).join('');
  document.querySelectorAll('[data-pose]').forEach(b => b.onclick=() => selectPose(b.dataset.pose));
+ $('poses').scrollLeft=listScroll;
+ if(matchMedia('(max-width: 700px)').matches){
+  const card=$('poses').querySelector('.active');
+  if(card){const list=$('poses').getBoundingClientRect(),rect=card.getBoundingClientRect();if(rect.left<list.left||rect.right>list.right)$('poses').scrollLeft+=rect.left-list.left;}
+ }
 }
 function selectPose(id, keepSide=false) {
  const p=poses.find(p=>p.id===id); if(!p)throw Error('Unknown movement');
@@ -67,11 +110,11 @@ function selectPose(id, keepSide=false) {
  $('angle-label').textContent=p.demoOnly ? '↔ Drag to rotate · scroll to zoom' : isUpperPose(id) ? '↔ Front camera · upper body' : isSidePose(id) ? '↔ Side-on camera · full body' : '↔ Face your camera';
  $('camera-setup').textContent=p.demoOnly ? 'Place your camera where your body and hands are visible. Live preview only; no technique scoring.' : 'Camera setup: '+framing(id);
  $('stage-note').hidden=!guideUnavailable || !!stream;
- $('reference-label').textContent=p.type==='rowing' ? '真实实验室动捕 · 120 Hz · 手指与桨为约束示意' : p.motion ? '3D movement demonstration' : p.demoOnly ? 'Illustrative 3D movement study' : isUpperPose(id) ? '3D reference · upper-body estimate' : '3D reference · 2D pose estimate';
+ $('reference-label').textContent=p.motion ? 'Expert demonstration' : p.demoOnly ? 'Illustrative 3D movement study' : isUpperPose(id) ? '3D reference · upper-body estimate' : '3D reference · 2D pose estimate';
  $('cues').innerHTML=p.cues.map((c,i)=>`<div class="cue"><span>${i+1}</span>${c}</div>`).join('');
  $('wrist-study').hidden=!p.wristStudy;
  $('cue-heading').textContent=p.demoOnly ? 'Explore this step' : 'Move comfortably';
- const mode=practiceModes[p.type]; $('practice-note').hidden=!mode;
+ const mode=practiceModes[p.type]; $('practice-note').hidden=!mode?.note;
  $('practice-note-text').textContent=mode?.note || ''; $('practice-source').textContent=mode?.sourceLabel || ''; $('practice-source').hidden=!mode?.source; if(mode?.source)$('practice-source').href=mode.source;
  const sequence=sequenceFor(id); $('sequence').hidden=!sequence.length;
  $('sequence-title').textContent=p.groupTitle || mode?.title || ''; $('sequence-count').textContent=sequence.length ? `${sequence.findIndex(x=>x.id===id)+1} / ${sequence.length}` : '';
@@ -80,7 +123,7 @@ function selectPose(id, keepSide=false) {
  $('timer-panel').hidden=$('timer-note').hidden=!!p.demoOnly;
  $('timer-label').textContent=p.type==='gentle' ? 'MOVE AT YOUR PACE' : 'COMFORTABLE HOLD';
  $('timer-note').textContent=p.type==='gentle' ? 'An optional timer. Move slowly and rest whenever you need to.' : 'A manual timer. Release sooner if you need to.';
- $('camera').disabled=starting; $('camera').textContent=stream ? 'Stop camera' : '▣ Enable camera';
+ $('camera').disabled=starting; setCameraButton(stream ? 'Stop camera' : '▣ Enable camera');
  $('camera-title').textContent=p.demoOnly ? 'Practice with a live preview.' : 'Your space. Your pace.';
  $('camera-sub').textContent=p.demoOnly ? stream ? 'Your camera is beside the 3D guide. No technique scoring.' : 'Enable camera to see yourself beside the 3D guide. No technique scoring.' : stream ? framing(id) : 'Enable your camera for an approximate body-shape comparison.';
  $('show-camera').hidden=document.querySelector('.comparison-panel').hidden=!!p.demoOnly;
@@ -104,16 +147,24 @@ $('help').onclick = () => $('help-dialog').showModal(); $('close-help').onclick 
 function updateTimer() { $('time').textContent = `00:${String(remaining).padStart(2, '0')}`; }
 function stopTimer() { clearInterval(timerId); timerId = null; $('timer').textContent = '▶'; $('timer').setAttribute('aria-label', 'Start hold timer'); }
 $('timer').onclick = () => { if (timerId) { stopTimer(); return } if (!remaining) remaining = poses.find(p=>p.id===current)?.hold || 30; $('timer').textContent = 'Ⅱ'; $('timer').setAttribute('aria-label', 'Pause hold timer'); timerId = setInterval(() => { remaining--; updateTimer(); if (!remaining) { stopTimer(); setFeedback({ state: 'unknown', title: 'Take a breath', text: 'Release gently. Rest or switch sides when you’re ready.' }) } }, 1000); };
-function stopCamera() {
- presence.reset(); focusView.setExpanded(false); runId++;
- stream?.getTracks().forEach(track => track.stop()); stream = null;
+function releaseCameraStream() {
+ runId++;
+ const previousStream=stream;stream=null;
+ previousStream?.getTracks().forEach(track=>{track.onended=null;track.stop();});
  $('tracking-video').pause();
+}
+function stopCamera({keepDialogOpen=false}={}) {
+ cameraControls.reset();
+ presence.reset(); focusView.setExpanded(false);
+ releaseCameraStream();
+ [...cameraSwitchButtons(),...cameraFlipButtons,dialogStop].forEach(button=>button.hidden=true);
  $('tracking-video').srcObject = $('video').srcObject = $('demo-video').srcObject = null;
  $('video').hidden = $('overlay').hidden = true;
  $('demo-camera').hidden = true; $('stage-layout').classList.remove('with-preview');
  $('three').hidden = false; $('stage-note').hidden = !guideUnavailable; $('rotate').hidden = false;
- $('stage').classList.remove('live'); $('show-camera').disabled = true; $('camera-dialog').close();
- clearComparison(); $('mode').textContent = '○   REFERENCE PREVIEW'; $('camera').textContent = '▣   Enable camera';
+ $('stage').classList.remove('live'); $('show-camera').disabled = true;
+ if(!keepDialogOpen)$('camera-dialog').close();
+ clearComparison(); $('mode').textContent = '○   REFERENCE PREVIEW'; setCameraButton('▣   Enable camera');
  $('camera-title').textContent = selectedPose().demoOnly ? 'Practice with a live preview.' : 'Your space. Your pace.';
  $('camera-sub').textContent = selectedPose().demoOnly ? 'Enable camera to see yourself beside the 3D guide. No technique scoring.' : 'Enable your camera to get live alignment cues.';
  stopTimer(); setFeedback({state:'unknown',title:'Camera is off',text:'Your reference guide is ready. You can restart whenever you like.'});
@@ -121,17 +172,41 @@ function stopCamera() {
 $('camera').onclick = async () => {
     if (stream) { stopCamera(); return } if (starting) return;
     const openingDemo = !!selectedPose().demoOnly;
-    starting = true; $('camera').disabled = true; $('camera').textContent = 'Connecting…';
+    starting = true; $('camera').disabled = true;
+    if(!switchingCamera)setCameraButton('Connecting…');
     try {
-        if (!navigator.mediaDevices?.getUserMedia) throw Error('Camera access requires HTTPS or localhost in a supported browser.');
-        stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false });
+        if (!window.isSecureContext) throw Error('Camera requires a trusted HTTPS connection. Open the HTTPS version of this site and allow camera access.');
+        if (!navigator.mediaDevices?.getUserMedia) throw Error('Camera is unavailable in this browser. Open this page in Safari or Chrome and allow camera access.');
+        stream = await navigator.mediaDevices.getUserMedia({ video: { resizeMode: {ideal:'none'}, ...(cameraDeviceId?{deviceId:{exact:cameraDeviceId}}:{facingMode:{ideal:cameraFacing}}) }, audio: false });
+        // A rear-facing request can select a telephoto lens on multi-camera phones.
+        // Prefer explicitly labelled wide lenses, while respecting a manual choice.
+        if(!cameraDeviceId && (cameraFacing==='environment'||stream.getVideoTracks()[0].getSettings().facingMode==='environment')){
+            let rearLens;
+            try{rearLens=preferredRearLens((await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput'));}catch{}
+            const originalId=stream.getVideoTracks()[0].getSettings().deviceId;
+            if(rearLens && originalId && rearLens.deviceId!==originalId){
+                stream.getTracks().forEach(track=>track.stop());stream=null;
+                const openLens=deviceId=>navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:deviceId},resizeMode:{ideal:'none'}},audio:false});
+                try{stream=await openLens(rearLens.deviceId);}catch{stream=await openLens(originalId);}
+            }
+        }
         if (openingDemo !== !!selectedPose().demoOnly) { stopCamera(); return; }
         stream.getVideoTracks()[0].onended = () => { if (stream) stopCamera(); };
+        const actualFacing=stream.getVideoTracks()[0].getSettings().facingMode;
+        if(actualFacing)cameraFacing=actualFacing;
+        for(const id of ['video','demo-video','overlay'])$(id).style.transform=cameraFacing==='environment'?'none':'scaleX(-1)';
+        await updateCameraDevices();
+        let devices=[];
+        try{devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');}catch{}
+        if(!stream){return;}
+        await cameraControls.configure(stream.getVideoTracks()[0],devices);
+        if(!stream){return;}
         if (openingDemo) {
+            $('demo-camera').hidden = false; $('stage-layout').classList.add('with-preview');
             $('demo-video').srcObject = stream; await $('demo-video').play();
             if (!stream || !selectedPose().demoOnly) { stopCamera(); return; }
             $('demo-camera').hidden = false; $('stage-layout').classList.add('with-preview');
-            $('camera').textContent = 'Stop camera'; $('camera-title').textContent = 'Practice with a live preview.';
+            setCameraButton('Stop camera'); $('camera-title').textContent = 'Practice with a live preview.';
             $('camera-sub').textContent = 'Your camera is beside the 3D guide. No technique scoring.';
             setFeedback({state:'unknown',title:'Live preview · no score',text:'Observe your movement beside the illustration. Ask your coach to review technique.'});
             return;
@@ -145,15 +220,47 @@ $('camera').onclick = async () => {
         if (!stream || selectedPose().demoOnly) { stopCamera(); return; }
         $('video').hidden = $('overlay').hidden = false; $('three').hidden = false; $('stage-note').hidden = true; $('rotate').hidden = false;
         $('stage').classList.add('live'); $('show-camera').disabled = false; $('mode').textContent = '●   LIVE · ON DEVICE';
-        $('camera').textContent = 'Stop camera'; $('camera-title').textContent = 'Make yourself comfortable.'; $('camera-sub').textContent = framing(current);
+        setCameraButton('Stop camera'); $('camera-title').textContent = 'Make yourself comfortable.'; $('camera-sub').textContent = framing(current);
         lastVideo = -1; const token = ++runId; requestAnimationFrame(t => track(t, token));
     } catch (e) {
-        stopCamera();
+        if(switchingCamera)releaseCameraStream();
+        else stopCamera();
         const msg = e.name === 'NotAllowedError' ? 'Camera permission was declined. Allow access in your browser and try again.' : e.name === 'NotFoundError' ? 'No camera was found. Connect a camera and try again.' : e.message || 'Could not start tracking. Check your connection and try again.';
         $('camera-sub').textContent = msg; setFeedback({state:'warning',title:'Camera could not start',text:msg});
     } finally { starting = false; $('camera').disabled = false; }
 };
 $('demo-camera-stop').onclick = stopCamera;
+async function switchCamera(deviceId=null,flip=false){
+    if(!stream||starting||switchingCamera)return;
+    switchingCamera=true;[...cameraSwitchButtons(),...cameraFlipButtons].forEach(button=>button.disabled=true);
+    const previous={deviceId:stream.getVideoTracks()[0].getSettings().deviceId || cameraDeviceId,facing:cameraFacing};
+    try{
+        const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+        const settings=stream.getVideoTracks()[0].getSettings();
+        if(flip){
+            const direction=settings.facingMode || cameraDirection(devices.find(d=>d.deviceId===settings.deviceId)) || cameraFacing;
+            cameraFacing=direction==='environment'?'user':'environment';cameraDeviceId=null;
+            const opposite=devices.filter(d=>cameraDirection(d)===cameraFacing);
+            const preferred=cameraFacing==='environment'?preferredRearLens(opposite):null;
+            if(opposite.length)cameraDeviceId=(preferred || opposite[0]).deviceId;
+        }else{
+            const sameSide=sameDirectionDevices(devices,settings);
+            if(deviceId){if(!sameSide.some(d=>d.deviceId===deviceId))return;cameraDeviceId=deviceId;}
+            else{if(sameSide.length<2)return;const index=sameSide.findIndex(d=>d.deviceId===settings.deviceId);cameraDeviceId=sameSide[(index+1)%sameSide.length].deviceId;}
+        }
+        // iOS requires releasing the current camera before opening the other lens.
+        // Release the hardware without resetting the preview, controls or layout.
+        releaseCameraStream();await $('camera').onclick();
+        if(!stream){cameraDeviceId=previous.deviceId;cameraFacing=previous.facing;await $('camera').onclick();}
+        if($('camera-dialog').open&&stream&&!selectedPose().demoOnly){await $('video').play();}
+    }catch(error){$('camera-sub').textContent=error.message||'Could not switch camera.';}
+    finally{
+        switchingCamera=false;
+        if(!stream)setCameraButton('▣ Enable camera');
+        await updateCameraDevices();
+    }
+}
+for(const button of cameraSwitchButtons())button.onclick=()=>switchCamera();
 const connections = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28]];
 function track(t, token) {
     if (token !== runId || !stream) return; try {
@@ -190,10 +297,10 @@ function renderComparison(result) {
   el.append(label,value);$('comparison-metrics').append(el);
  }
 }
-$('focus-camera').onclick=()=>$('camera-dialog').showModal();
+$('focus-camera').onclick=()=>{$('camera-dialog').showModal();$('video').play().catch(()=>{});};
 $('focus-stop').onclick=()=>stopCamera();
 setInterval(()=>{if(stream && performance.now()-lastPoseFrame>500){focusView.setExpanded(presence.update(false,performance.now()));sceneApi?.setLive(null);renderComparison(null);}},250);
-$('show-camera').onclick=()=>$('camera-dialog').showModal();
+$('show-camera').onclick=()=>{$('camera-dialog').showModal();$('video').play().catch(()=>{});};
 $('close-camera').onclick=()=>$('camera-dialog').close();
 $('switch-side').onclick=()=>{flipped=!flipped;motionPlayer.mirror(flipped);sceneApi?.setPose(current);clearComparison();};
 function drawComparison(ctx, p, result, width, height) {
@@ -208,6 +315,11 @@ function drawComparison(ctx, p, result, width, height) {
 
 document.addEventListener('visibilitychange', () => { if (document.hidden) { stopTimer(); } }); window.addEventListener('pagehide', stopCamera);
 registerPoseTranslations(poses);
+document.querySelectorAll('[data-gender]').forEach(button=>{
+ button.setAttribute('aria-pressed',String(button.dataset.gender===modelGender));
+ button.onclick=()=>{modelGender=button.dataset.gender;try{localStorage.setItem('fitai-model-gender',modelGender);}catch{}
+  document.querySelectorAll('[data-gender]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));sceneApi?.setGender();};
+});
 document.querySelectorAll('[data-language]').forEach(button => button.onclick = () => {
  setLanguage(button.dataset.language);
  document.querySelectorAll('[data-language]').forEach(option => option.setAttribute('aria-pressed', String(option === button)));
@@ -221,12 +333,13 @@ async function initThree() {
         const links = [[0, 1], [0, 2], [2, 4], [1, 3], [3, 5], [0, 6], [1, 7], [6, 7], [6, 8], [8, 10], [7, 9], [9, 11]]; let target = getReference(current, flipped), neutralCoords = target.map(p => new THREE.Vector3(...p)), coords = neutralCoords.map(p=>p.clone()); const head=new THREE.Object3D(); const liveGroup=new THREE.Group();group.add(liveGroup);liveGroup.visible=false;
         const liveBones=links.map(()=>{const material=new THREE.MeshBasicMaterial({color:0x243950,depthTest:false});const mesh=new THREE.Mesh(new THREE.CylinderGeometry(.022,.022,1,10),material);mesh.renderOrder=3;liveGroup.add(mesh);return mesh;});
         const liveJoints=landmarkIds.map(()=>{const mesh=new THREE.Mesh(new THREE.SphereGeometry(.038,12,10),new THREE.MeshBasicMaterial({color:0x243950,depthTest:false}));mesh.renderOrder=4;liveGroup.add(mesh);return mesh;});
+        const skinMaterial=new THREE.MeshStandardMaterial({color:0xc9b79f,roughness:.85});
         const handMaterial=new THREE.MeshStandardMaterial({color:0xc9b79f,roughness:.8});
         const hands=[-1,1].map(side=>{const hand=createHand(THREE,handMaterial,side);group.add(hand.root);return {...hand,side,gripPoint:new THREE.Vector3()};});
         const tennisHands=[-1,1].map(side=>{const hand=createTennisHand(THREE,handMaterial,side);group.add(hand.root);return hand;});
         const relaxedHands=[-1,1].map(side=>{const hand=createRelaxedHand(THREE,handMaterial,side);group.add(hand.root);return hand;});
-        const equipmentHands=Object.fromEntries([['rowing',rowingGrip],['clay',clayGrip]].map(([type,spec])=>[type,[-1,1].map(side=>{
-            const hand=createWrappedHand(THREE,handMaterial,side,spec);group.add(hand.root);return hand;
+        const equipmentHands=Object.fromEntries([['rowing',rowingGrip],['clay',shootingGrip]].map(([type,spec])=>[type,[-1,1].map(side=>{
+            const hand=createWrappedHand(THREE,handMaterial,side,type==='clay'&&side===1?shootingRearGrip:spec);group.add(hand.root);return hand;
         })]));
         const wristDetail=createWristDetail(THREE,$('wrist-detail'));wristDetail.setMode(wristMode);
         const propMaterial=new THREE.MeshStandardMaterial({color:0x9c8060,roughness:.8});
@@ -241,27 +354,12 @@ async function initThree() {
             return {side,shaft,handle,blade,end:new THREE.Vector3()};
         });
         const hull=new THREE.Mesh(new THREE.SphereGeometry(1,32,16),new THREE.MeshStandardMaterial({color:0x9cb5ae,roughness:.8}));hull.scale.set(1.05,.08,.21);hull.position.set(-.2,.52,0);group.add(hull);
-        const racket=new THREE.Group();group.add(racket);
-        const grip=new THREE.Mesh(new THREE.CylinderGeometry(tennisGrip.radius,tennisGrip.radius,.28,12),propMaterial);grip.position.y=.14;racket.add(grip);
-        const butt=new THREE.Mesh(new THREE.CylinderGeometry(.028,.028,.014,12),propMaterial);butt.position.y=.007;racket.add(butt);
-        const rim=new THREE.Mesh(new THREE.TorusGeometry(.18,.014,8,36),mat);rim.scale.y=1.3;rim.position.y=.5;racket.add(rim);
-        const strings=new THREE.Mesh(new THREE.CircleGeometry(.165,24),new THREE.MeshBasicMaterial({color:0x7c8e70,transparent:true,opacity:.22,side:THREE.DoubleSide}));strings.scale.y=1.3;strings.position.y=.5;racket.add(strings);
-        // Stylized exterior prop only; no working mechanism or aiming simulation.
-        const shotgun=new THREE.Group();group.add(shotgun);
-        const gunWood=new THREE.MeshStandardMaterial({color:0x95633f,roughness:.75});
-        const gunMetal=new THREE.MeshStandardMaterial({color:0x49545c,roughness:.48,metalness:.25});
-        const gunPart=(geometry,material,x,y=0)=>{const mesh=new THREE.Mesh(geometry,material);mesh.position.set(x,y,0);shotgun.add(mesh);return mesh;};
-        const stock=gunPart(new THREE.BoxGeometry(.30,.16,.085),gunWood,-.33,-.025);stock.rotation.z=.1;
-        const neckGrip=gunPart(new THREE.CylinderGeometry(clayGrip.radius,clayGrip.radius,.20,16),gunWood,clayGrip.rear[0],clayGrip.rear[1]);neckGrip.rotation.z=Math.PI/2;
-        gunPart(new THREE.BoxGeometry(.035,.18,.1),gunMetal,-.49,-.045);
-        gunPart(new THREE.BoxGeometry(.18,.10,.085),gunMetal,.09);
-        gunPart(new THREE.BoxGeometry(.10,.10,.065),gunMetal,.21,.025);
-        const foreend=gunPart(new THREE.CylinderGeometry(clayGrip.radius,clayGrip.radius,.38,16),gunWood,.52,clayGrip.rear[1]);foreend.rotation.z=Math.PI/2;
-        gunPart(new THREE.BoxGeometry(.18,.04,.05),gunWood,.62,-.012);
-        for(const y of [.025,.073]){const barrel=gunPart(new THREE.CylinderGeometry(.023,.023,1.02,16),gunMetal,.76,y);barrel.rotation.z=Math.PI/2;}
+        const racket=createTennisRacket(THREE).root;group.add(racket);
+        const shotgun=createShootingProp(THREE).root;group.add(shotgun);
         let motionSample=null;
         const feet=[new THREE.Object3D(),new THREE.Object3D()],pelvis=new THREE.Object3D();
-        const athlete=createAthleteModel(THREE,{body:mat,skin:handMaterial});group.add(athlete.root);
+        const athletes=Object.fromEntries(['male','female'].map(gender=>{const model=createAthleteModel(THREE,{body:mat,skin:skinMaterial,gender});group.add(model.root);model.root.visible=gender===modelGender;return [gender,model];}));
+        let athlete=athletes[modelGender];
         const boatSeat=new THREE.Mesh(new THREE.BoxGeometry(.25,.055,.35),propMaterial);group.add(boatSeat);
         const oarlocks=sculls.map(item=>{
             const root=new THREE.Group();group.add(root);
@@ -276,17 +374,18 @@ async function initThree() {
         function updateProps(){
             const type=selectedPose().type;chairGroup.visible=type==='gentle';hull.visible=type==='rowing';racket.visible=type==='tennis';
             boatSeat.visible=type==='rowing';const seatY=motionSample?.captured?(coords[6].y+coords[7].y)/2-.075:.56;boatSeat.position.set((coords[6].x+coords[7].x)/2,seatY,0);hull.position.y=motionSample?.captured?.08:.52;
-            oarlocks.forEach((lock,i)=>{lock.root.visible=type==='rowing';if(motionSample?.captured){lock.root.position.fromArray(motionSample.oars[i].pivot).sub(lock.pivot);}else lock.root.position.set(0,0,0);});
+            oarlocks.forEach((lock,i)=>{lock.root.visible=type==='rowing';if(type==='rowing'&&motionSample?.captured){lock.root.position.fromArray(motionSample.oars[i].pivot).sub(lock.pivot);}else lock.root.position.set(0,0,0);});
             shotgun.visible=type==='clay';
             for(const hand of hands){
                 const w=hand.side<0?4:5,e=hand.side<0?2:3;
                 const showHands=type==='rowing'||type==='clay'||type==='tennis';
-                const side=hand.side<0?0:1,tennis=type==='tennis'&&!!motionSample,equipped=!!motionSample?.equipmentHands;
-                hand.root.visible=showHands&&!tennis&&!equipped;
+                const side=hand.side<0?0:1,tennis=type==='tennis'&&!!motionSample,equipped=!!motionSample?.equipmentHands?.[side];
+                hand.root.visible=showHands&&!tennis&&!equipped&&!motionSample?.captured;
                 const gripFrame=motionSample?.tennisHands?.[side];
                 const meshSide=flipped?1-side:side;
                 tennisHands[meshSide].root.visible=tennis&&!!gripFrame;
-                relaxedHands[meshSide].root.visible=(tennis&&!gripFrame)||!showHands;
+                relaxedHands[meshSide].root.visible=(tennis&&!gripFrame)||!showHands||(motionSample?.captured&&!tennis&&!equipped);
+                relaxedHands[meshSide].root.scale.setScalar(type==='yoga'?1.18:1);
                 for(const [sport,models]of Object.entries(equipmentHands))models[meshSide].root.visible=equipped&&type===sport;
                 if(equipped){
                     const frame=motionSample.equipmentHands[side];
@@ -303,7 +402,14 @@ async function initThree() {
                     }
                     continue;
                 }
-                if(!showHands){orientHand(THREE,relaxedHands[meshSide],coords[w],coords[w].clone().sub(coords[e]));continue;}
+                if(!showHands||(motionSample?.captured&&!equipped)){
+                    const direction=coords[w].clone().sub(coords[e]);
+                    if(type==='yoga'&&current==='down-dog')direction.copy(coords[w]).sub(coords[10+side]).setY(0);
+                    if(type==='yoga'&&current==='tree')direction.copy(coords[0]).add(coords[1]).sub(coords[6]).sub(coords[7]).normalize();
+                    orientHand(THREE,relaxedHands[meshSide],coords[w],direction);
+                    if(type==='yoga'&&current==='tree')relaxedHands[meshSide].root.rotateX((side===0?-1:1)*Math.PI/2);
+                    continue;
+                }
                 const direction=coords[w].clone().sub(coords[e]);
                 if(type==='rowing' && wristExamples[wristMode].keepGrip){
                     const neutralDirection=neutralCoords[w].clone().sub(neutralCoords[e]).normalize();
@@ -353,15 +459,27 @@ async function initThree() {
             const wrist=flipped?4:5,elbow=flipped?2:3;
             if(type==='tennis'&&motionSample){
                 racket.position.fromArray(motionSample.racketPosition);
-                racket.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(...motionSample.racketDirection));
+                if(motionSample.racketRotation)racket.quaternion.fromArray(motionSample.racketRotation);
+                else racket.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(...motionSample.racketDirection));
             }else{
                 racket.position.copy(coords[wrist]);racket.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),coords[wrist].clone().sub(coords[elbow]).normalize());
             }
         }
         let hostSize={width:host.clientWidth,height:host.clientHeight};
-        let rotation=0,tilt=0,cameraTilt=0,drag=null;
+        let rotation=0,tilt=0,cameraTilt=0,drag=null,pinch=null;
+        const pointers=new Map();
+        let staticCamera=false,staticFrame=null;
+        const staticCameraAvailable=()=>['rowing','tennis','clay'].includes(selectedPose().type);
+        const updateStaticCameraButton=()=>{
+            $('static-camera').hidden=!staticCameraAvailable();
+            $('static-camera').setAttribute('aria-pressed',String(staticCamera));
+            $('static-camera').textContent=staticCamera?'Static camera · On':'Static camera · Off';
+        };
+        $('static-camera').onclick=()=>{staticCamera=!staticCamera;staticFrame=null;updateStaticCameraButton();};
+        updateStaticCameraButton();
         const canvas=renderer.domElement;
-        canvas.setAttribute('aria-label','拖拽旋转，上下拖拽调整俯仰，滚轮缩放，双击恢复默认视角');
+        canvas.style.touchAction='none';
+        canvas.setAttribute('aria-label','Drag to rotate, drag vertically to tilt, scroll to zoom, double-click to reset the view');
         canvas.addEventListener('wheel',event=>{
             event.preventDefault();
             // Normalize mouse wheels (lines/pages) and trackpads (pixels).
@@ -372,11 +490,22 @@ async function initThree() {
         },{passive:false});
         canvas.addEventListener('dblclick',resetView);
         canvas.addEventListener('pointerdown',event=>{
+            if(event.pointerType==='touch'){
+                pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+                canvas.setPointerCapture(event.pointerId);
+                if(pointers.size===2){const [a,b]=[...pointers.values()];pinch={distance:Math.hypot(a.x-b.x,a.y-b.y),zoom:viewZoom};drag=null;canvas.classList.remove('dragging');event.preventDefault();return;}
+            }
             if(!event.isPrimary||event.button!==0)return;
             drag={id:event.pointerId,x:event.clientX,y:event.clientY};
             canvas.setPointerCapture(event.pointerId);canvas.classList.add('dragging');event.preventDefault();
         });
         canvas.addEventListener('pointermove',event=>{
+            if(pointers.has(event.pointerId))pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+            if(pinch&&pointers.size>=2){
+                const [a,b]=[...pointers.values()],distance=Math.hypot(a.x-b.x,a.y-b.y);
+                if(distance>0&&pinch.distance>0)viewZoom=THREE.MathUtils.clamp(pinch.zoom*pinch.distance/distance,.18,4);
+                $('reset-view').hidden=false;event.preventDefault();return;
+            }
             if(!drag||event.pointerId!==drag.id)return;
             if(event.clientX!==drag.x||event.clientY!==drag.y)$('reset-view').hidden=false;
             rotation+=(event.clientX-drag.x)*Math.PI*2/Math.max(hostSize.width,1);
@@ -384,10 +513,15 @@ async function initThree() {
             drag.x=event.clientX;drag.y=event.clientY;
             event.preventDefault();
         });
-        const endDrag=event=>{if(drag&&event.pointerId===drag.id){drag=null;canvas.classList.remove('dragging');if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);}};
+        const endDrag=event=>{
+            pointers.delete(event.pointerId);if(pointers.size<2)pinch=null;
+            if(drag&&event.pointerId===drag.id){drag=null;canvas.classList.remove('dragging');}
+            if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);
+        };
         for(const name of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(name,endDrag);
         function resetView(){
             viewZoom=1;tilt=0;
+            staticFrame=null;updateStaticCameraButton();
             rotation=['rowing','clay'].includes(selectedPose().type)?Math.PI/4:0;
             $('reset-view').hidden=true;
         }
@@ -397,9 +531,10 @@ async function initThree() {
         function setModelTheme(){
             const css=getComputedStyle(document.documentElement),color=key=>css.getPropertyValue(key).trim();
             mat.color.set(liveGroup.visible?'#dde5d6':color('--figure-body'));
-            handMaterial.color.set(liveGroup.visible?'#ded9ce':'#c9b79f');floor.material.color.set(color('--figure-body'));rings.material.color.set(color('--figure-joint'));
+            athlete.setSport(selectedPose().type,current);
+            handMaterial.color.set(selectedPose().type==='yoga'?'#c0987b':selectedPose().type==='clay'?'#252b2d':selectedPose().type==='rowing'?'#ae805f':selectedPose().type==='tennis'?'#cba68e':liveGroup.visible?'#ded9ce':'#c9b79f');floor.material.color.set(color('--figure-body'));rings.material.color.set(color('--figure-joint'));
         }
-        sceneApi = { setTheme:setModelTheme, setWristMode(mode){wristDetail.setMode(mode);}, setPose(id) { target = getReference(id, flipped);resetView(); }, setLive(values,adjust=[]) {
+        sceneApi = { setGender(){athlete=athletes[modelGender];Object.entries(athletes).forEach(([gender,model])=>{model.root.visible=gender===modelGender;});setModelTheme();}, setTheme:setModelTheme, setWristMode(mode){wristDetail.setMode(mode);}, setPose(id) { target = getReference(id, flipped);resetView();setModelTheme(); }, setLive(values,adjust=[]) {
             liveGroup.visible=!!values;setModelTheme();if(!values)return;
             const pts=values.map(v=>v?new THREE.Vector3(...v):null);liveJoints.forEach((m,i)=>{m.visible=!!pts[i];if(pts[i])m.position.copy(pts[i]);});
             links.forEach(([a,b],i)=>{const m=liveBones[i];m.visible=!!pts[a]&&!!pts[b];if(!m.visible)return;const d=pts[b].clone().sub(pts[a]);m.position.copy(pts[a]).add(pts[b]).multiplyScalar(.5);m.scale.y=d.length();m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());m.material.color.set(adjust.includes(landmarkIds[a])||adjust.includes(landmarkIds[b])?0x854316:0x243950);});
@@ -410,6 +545,7 @@ async function initThree() {
             if(motionSample)neutralCoords.forEach((v,i)=>v.fromArray(motionSample.coords[i]));
             else neutralCoords.forEach((v,i)=>v.lerp(new THREE.Vector3(...target[i]),1-Math.exp(-10*delta)));
             coords.forEach((v,i)=>v.copy(neutralCoords[i]));
+            if(selectedPose().type==='yoga')fitYogaArms(coords,current);
             if(selectedPose().type==='rowing'&&!motionSample?.captured){
                 const example=wristExamples[wristMode];
                 for(const i of [4,5])coords[i].y+=example.wristLift;
@@ -421,7 +557,7 @@ async function initThree() {
             const lateral=coords[1].clone().sub(coords[0]).normalize();
             const forward=new THREE.Vector3().crossVectors(lateral,axis).normalize();
             lateral.crossVectors(axis,forward).normalize();
-            head.position.copy(shoulder).addScaledVector(axis,.31);
+            head.position.copy(shoulder).addScaledVector(axis,selectedPose().type==='yoga'?.21:.31);
             head.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(lateral,axis,forward));
             if(motionSample?.captured){
                 head.position.fromArray(motionSample.headPosition);head.quaternion.fromArray(motionSample.headRotation);
@@ -430,15 +566,20 @@ async function initThree() {
             const hipLateral=coords[7].clone().sub(coords[6]).normalize(),hipForward=new THREE.Vector3().crossVectors(hipLateral,new THREE.Vector3(0,1,0)).normalize();
             pelvis.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(hipLateral,new THREE.Vector3(0,1,0),hipForward));if(motionSample?.captured)pelvis.quaternion.fromArray(motionSample.pelvisRotation);
             feet.forEach((foot,i)=>{foot.visible=!!motionSample;foot.position.copy(coords[10+i]).addScaledVector(hipForward,.06);foot.position.y-=.03;foot.quaternion.copy(pelvis.quaternion);if(motionSample?.toePositions){const toe=new THREE.Vector3(...motionSample.toePositions[i]);foot.position.copy(coords[10+i]).lerp(toe,.5);const direction=toe.sub(coords[10+i]).normalize();foot.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),direction);}});
-            group.rotation.y += (rotation - group.rotation.y) * (drag?1:1-Math.exp(-8*delta));cameraTilt+=(tilt-cameraTilt)*(drag?1:1-Math.exp(-8*delta));updateProps();
+            const viewBlend=drag||(staticCamera&&staticCameraAvailable())?1:1-Math.exp(-8*delta);
+            group.rotation.y += (rotation - group.rotation.y) * viewBlend;cameraTilt+=(tilt-cameraTilt)*viewBlend;updateProps();
             athlete.update(coords,motionSample,{head,pelvis,feet});
             let boundPoints=[...coords,head.position.clone().add(new THREE.Vector3(0,.2,0))];
-            if(shotgun.visible)for(const x of [-.52,1.30])for(const y of [-.15,.13])boundPoints.push(new THREE.Vector3(x,y,0).multiply(shotgun.scale).applyQuaternion(shotgun.quaternion).add(shotgun.position));
-            if(racket.visible)boundPoints.push(new THREE.Vector3(0,.75,0).applyQuaternion(racket.quaternion).add(racket.position));
+            if(shotgun.visible)for(const x of [shootingEnvelope.min[0],shootingEnvelope.max[0]])for(const y of [shootingEnvelope.min[1],shootingEnvelope.max[1]])boundPoints.push(new THREE.Vector3(x,y,0).multiply(shotgun.scale).applyQuaternion(shotgun.quaternion).add(shotgun.position));
+            if(racket.visible)for(const x of [racketEnvelope.min[0],racketEnvelope.max[0]])boundPoints.push(new THREE.Vector3(x,racketEnvelope.max[1],0).applyQuaternion(racket.quaternion).add(racket.position));
             if(hull.visible&&!motionSample?.captured)for(const item of sculls)for(const sign of [-1,1])boundPoints.push(item.end.clone().add(new THREE.Vector3(.24*sign,.06*sign,.13*sign)));
             // Fit in camera space so changing elevation cannot clip the head or hands.
             const yaw=group.rotation.y,cy=Math.cos(yaw),sy=Math.sin(yaw);
-            const world=boundPoints.map(p=>new THREE.Vector3(p.x*cy+p.z*sy,p.y,-p.x*sy+p.z*cy));
+            // Freeze the framing points, while keeping manual orbit and zoom available.
+            // Pose changes/reset recapture the frame; playback and seeking do not.
+            const fixed=staticCamera&&staticCameraAvailable();
+            if(fixed&&!staticFrame)staticFrame=boundPoints.map(p=>p.clone());
+            const world=(fixed?staticFrame:boundPoints).map(p=>new THREE.Vector3(p.x*cy+p.z*sy,p.y,-p.x*sy+p.z*cy));
             const bounds=new THREE.Box3().setFromPoints(world).expandByScalar(.16),center=bounds.getCenter(new THREE.Vector3());
             const full=$('stage').classList.contains('focus-active'),area=hostSize;
             const usableHeight=Math.max(.3,1-(full?230:190)/Math.max(area.height,1)),usableWidth=full?.88:.85;
@@ -450,7 +591,9 @@ async function initThree() {
                 distance=Math.max(distance,depth+Math.abs(x)/(tan*camera.aspect*usableWidth),depth+Math.abs(screenY)/(tan*usableHeight));
             }
             const desired=center.clone().add(new THREE.Vector3(0,st,ct).multiplyScalar(Math.max(.35,(distance+.12)*viewZoom)));
-            camera.position.lerp(desired,drag?1:1-Math.exp(-8*delta));camera.lookAt(center);
+            if(fixed)camera.position.copy(desired);
+            else camera.position.lerp(desired,drag?1:1-Math.exp(-8*delta));
+            camera.lookAt(center);
             renderer.render(scene, camera) });
     } catch (e) { guideUnavailable = true; $('stage-note').hidden = false; $('stage-note').innerHTML = '3D guide could not load.<small>You can still follow the written cues or enable your camera.</small>'; $('rotate').disabled = true; }
 }

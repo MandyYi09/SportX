@@ -6,7 +6,7 @@ export function createTennisHand(THREE,material,side) {
 
 export function createWrappedHand(THREE,material,side,spec=tennisGrip) {
  const root=new THREE.Group();
- const extra=spec.radius-tennisGrip.radius;
+ const extra=spec.radius-.023;
  const palm=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),material);
  palm.scale.set(.030,.038,.031+extra);palm.position.set(-.052-extra,0,0);root.add(palm);
  function tube(points,radius) {
@@ -27,11 +27,20 @@ export function createWrappedHand(THREE,material,side,spec=tennisGrip) {
  }
  // Opposing thumb closes diagonally over the finger bases.
  tube([[-.065-extra,.032,side*(.026+extra)],[-.042-extra,.043,side*(.034+extra)],[-.012,.032,side*(.038+extra)],[.012,.013,side*(.034+extra)]],.012);
- tube([spec.wrist,[-.066-extra,-.006,0]],.024);
- return {root};
+ const wristLink=new THREE.Mesh(new THREE.CylinderGeometry(.024,.024,1,12),material);root.add(wristLink);
+ const wristCap=new THREE.Mesh(new THREE.SphereGeometry(.024,12,8),material);root.add(wristCap);
+ const defaultWrist=[...spec.wrist],palmEnd=new THREE.Vector3(-.066-extra,-.006,0);
+ function setWristOffset(offset=defaultWrist){
+  const start=new THREE.Vector3(...offset),axis=palmEnd.clone().sub(start),length=axis.length();
+  wristCap.position.copy(start);wristLink.position.copy(start).lerp(palmEnd,.5);
+  wristLink.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),axis.normalize());wristLink.scale.y=length;
+ }
+ setWristOffset();
+ return {root,setWristOffset};
 }
 
 export function placeTennisHand(THREE,hand,frame) {
+ hand.setWristOffset?.(frame.wristOffset);
  hand.root.position.fromArray(frame.center);
  hand.root.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
   new THREE.Vector3(...frame.x),new THREE.Vector3(...frame.y),new THREE.Vector3(...frame.z)));

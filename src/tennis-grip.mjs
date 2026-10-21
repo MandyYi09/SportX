@@ -1,5 +1,5 @@
 // Shared dimensions for the hand mesh, wrist IK and racket attachment.
-export const tennisGrip = {radius:.023,spacing:.095,buttToLowerHand:.05,wrist:[-.085,-.012,0]};
+export const tennisGrip = {radius:.0185,spacing:.095,buttToLowerHand:.05,wrist:[-.085,-.012,0]};
 const add=(a,b)=>a.map((v,i)=>v+b[i]);
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const mul=(a,s)=>a.map(v=>v*s);

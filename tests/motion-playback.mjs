@@ -101,7 +101,7 @@ for(const side of ['forehand','backhand']){
    nearFrame(sampleMotion(slice.id,t).coords,sampleMotion(full.id,t+slice.sourceStart-full.sourceStart).coords);
  }
 }
-assert.equal(practicePoses.find(p=>p.id==='clay-lower').zh[0],'下枪');
+assert.equal(practicePoses.find(p=>p.id==='clay-lower').zh[0],'完整动作 · 第4组');
 assert.equal(practicePoses.find(p=>p.id==='rowing-half').zh[0],'1/2 划');
 assert.equal(sampleMotion('reach',0),null);
 let now=0;
