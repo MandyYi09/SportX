@@ -21,3 +21,22 @@ const mirrored={...arrow,from:{x:1000-arrow.from.x,y:arrow.from.y},to:{x:1000-ar
 const limb=new RowingLimbFeedback();assert.deepEqual(limb.errors([m],true,0),[]);assert.deepEqual(limb.errors([m],true,1100),[]);assert.equal(limb.errors([m],true,1200)[0].key,'height-1');assert.deepEqual(limb.errors([m],false,1300),[],'Lost tracking clears arrow evidence');assert.deepEqual(limb.errors([m],true,1400),[]);
 p[14].visibility=.2;assert.ok(!assessRowing('rowing-arms',p,ref,1000,1000,{source,yaw}).metrics.some(m=>m.key==='height-1'),'An uncertain elbow must not produce a guessed arrow');
 console.log('PASS: frontal raised right arm with cropped wrist, partial height feedback, downward curved arrow, mirror direction, persistence and uncertainty.');
+
+// Half stroke hands-away: height uses stable body anchors, not the moving arm.
+const halfSource=sampleCapturedMotion('rowing-half',rowingCheckpoints['rowing-half'][1].time).coords;
+const halfRef=rowingReference('rowing-half',1,1,yaw);
+const halfPose=Array.from({length:33},(_,i)=>halfRef[i]?{x:.5+halfRef[i].x*.3,y:.8+halfRef[i].y*.3,visibility:.99}:{x:0,y:0,visibility:0});
+for(const j of [23,24,25,26,27,28])halfPose[j].visibility=0;
+const halfOptions={source:halfSource,yaw};
+const originalHalf=assessRowing('rowing-half',halfPose,halfRef,1000,1000,halfOptions);
+assert.ok(originalHalf.metrics.filter(m=>m.kind==='position').every(m=>m.close));
+assert.ok(!originalHalf.missing.some(j=>[13,14].includes(j.id)),'An end-on elbow is not a missing landmark');
+const originalTarget=originalHalf.metrics.find(m=>m.key==='height-0').target;
+halfPose[13].y+=.18;
+const loweredHalf=assessRowing('rowing-half',halfPose,halfRef,1000,1000,halfOptions),height=loweredHalf.metrics.find(m=>m.key==='height-0');
+assert.equal(height.target,originalTarget,'Moving the elbow must not move its target');assert.equal(height.close,false);assert.equal(height.direction,'up');
+halfPose[13].y-=.18;
+assert.equal(assessRowing('rowing-half',halfPose,halfRef,1000,1000,halfOptions).metrics.find(m=>m.key==='height-0').close,true);
+halfPose[12].visibility=0;
+assert.ok(!assessRowing('rowing-half',halfPose,halfRef,1000,1000,halfOptions).metrics.some(m=>m.kind==='position'),'Without body anchors, do not scale height from the arm being corrected');
+console.log('PASS: half-stroke hands-away keeps a fixed elbow-height target, recognizes corrected height, separates end-on angles from missing elbows and refuses self-scaling.');

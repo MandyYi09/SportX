@@ -1,4 +1,5 @@
 import {createRowingCorrection} from './rowing-correction-ui.mjs';
+import {createVoiceControls} from './voice-controls-ui.mjs';
 import {loadCapturedMotions} from './captured-motion.mjs';
 try { await loadCapturedMotions(); } catch(error) { document.getElementById('stage-note').hidden=false; document.getElementById('stage-note').textContent='Movement demonstration could not load. Please reload.'; throw error; }
 import {prepareLandmarks,isSidePose,isUpperPose,requiredLandmarks} from './tracking-view.mjs';
@@ -23,7 +24,8 @@ import {createShootingProp,shootingGrip,shootingRearGrip,shootingEnvelope} from 
 import {rowingGrip} from './equipment-grip.mjs';
 import {getLanguage, setLanguage, registerPoseTranslations, startLocalization, refreshLocalization} from './i18n.mjs?v=49';
 const selectedPose = () => poses.find(p => p.id === current);
-const rowingCorrection=createRowingCorrection({getLanguage,getGender:()=>modelGender,onDirection:yaw=>sceneApi?.setTrackingYaw(yaw),beforeOpen:()=>{motionPlayer.pause();}});
+let voiceControls=null;
+const rowingCorrection=createRowingCorrection({getLanguage,getGender:()=>modelGender,onDirection:yaw=>sceneApi?.setTrackingYaw(yaw),beforeOpen:()=>{motionPlayer.pause();},onPlayback:(active,text)=>voiceControls?.setSpeaking('rowing',active,text),onControls:parent=>voiceControls?.mount(parent)});
 const correctionButton=document.createElement('button');correctionButton.className='primary';correctionButton.id='start-rowing-correction';correctionButton.textContent='Start correction';correctionButton.disabled=true;correctionButton.onclick=()=>rowingCorrection.open(current);$('camera').before(correctionButton);
 const framing = id => isUpperPose(id) ? 'Face the camera with shoulders, elbows, wrists and hips visible. Feet can stay out of frame.' : isSidePose(id) ? 'Turn side-on with your whole body visible.' : 'Face the camera with your whole body visible.';
 const presence = new PosePresence();
@@ -57,6 +59,53 @@ function setCameraButton(label){
     else{$('camera').textContent=label;$('camera').classList.remove('camera-icon-button');delete $('camera').dataset.cameraIcon;$('camera').removeAttribute('title');$('camera').removeAttribute('aria-label');}
 }
 const cameraControls=createCameraControls([$('demo-camera'),$('camera-dialog')],deviceId=>switchCamera(deviceId));
+voiceControls=createVoiceControls({getLanguage,onCommand:executeVoiceCommand,onAnnouncement:active=>rowingCorrection.holdSpeech(active),onAvailability:active=>rowingCorrection.setVoiceAvailable(active),onInterrupt:()=>rowingCorrection.interruptSpeech()});
+const voicePanel=document.createElement('div');document.querySelector('.camera-actions').after(voicePanel);voiceControls.mount(voicePanel);
+window.addEventListener('pagehide',()=>voiceControls.dispose());
+async function executeVoiceCommand(command){
+ const tr=(en,zh)=>getLanguage()==='zh'?zh:en;
+ if(command==='voice-off'){voiceControls.disable();return tr('Voice control off.','语音控制已关闭。');}
+ if(command==='camera-on'){
+  if(stream)return tr('Camera already on.','摄像头已开启。');
+  await $('camera').onclick();return tr(stream?'Camera on.':'Camera could not start. Check camera permission.',stream?'摄像头已开启。':'摄像头未能开启，请检查相机权限。');
+ }
+ if(command==='camera-off'){rowingCorrection.close();stopCamera();return tr('Camera off. Voice control is still listening.','摄像头已关闭，语音控制继续聆听。');}
+ if(command==='camera-next'||command==='camera-flip'){
+  if(!stream)return tr('Open the camera first.','请先打开摄像头。');
+  if(starting||switchingCamera)return tr('Camera switch in progress.','正在切换摄像头。');
+  if(command==='camera-next'){
+   const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+   if(sameDirectionDevices(devices,stream.getVideoTracks()[0].getSettings()).length<2)return tr('No other lens on this side. Try flip camera.','当前方向没有其他镜头，可以说翻转镜头。');
+  }
+  rowingCorrection.close();await switchCamera(null,command==='camera-flip');return tr('Camera updated. Find your direction again.','摄像头已更新，请重新确定朝向。');
+ }
+ if(command==='next-movement'||command==='previous-movement'){
+  const ids=['rowing-arms','rowing-half','rowing-full'],offset=command==='next-movement'?1:-1;
+  const at=ids.indexOf(current),next=ids[at<0?0:(at+offset+ids.length)%ids.length];
+  rowingCorrection.close();filter='rowing';document.querySelectorAll('[data-filter]').forEach(button=>button.classList.toggle('selected',button.dataset.filter==='rowing'));selectPose(next);
+  return tr('Selected '+selectedPose().name+'. Set your direction, then say start correction.','已选择'+(selectedPose().zh?.[0]||{'rowing-arms':'出手划','rowing-half':'半桨划','rowing-full':'全桨划'}[next])+'。确定朝向后，说开始纠错。');
+ }
+ if(selectedPose().type!=='rowing')return tr('Select a rowing movement first.','请先选择赛艇动作。');
+ if(command==='mirror-on'||command==='mirror-off'){rowingCorrection.mirror(command==='mirror-on');return tr(command==='mirror-on'?'Mirror on.':'Mirror off.',command==='mirror-on'?'镜像已开启。':'镜像已关闭。');}
+ if(command==='start'||command==='lock'){
+  if(rowingCorrection.isOpen())return tr('Direction already locked.','朝向已经锁定。');
+  if(!rowingCorrection.isReady())return tr(stream?'Keep both shoulders visible until your direction is ready.':'Open the camera first.',stream?'请让双肩入镜，等待朝向就绪。':'请先打开摄像头。');
+  rowingCorrection.open(current);return null;
+ }
+ if(command==='reposition'){
+  if(!stream)return tr('Open the camera first.','请先打开摄像头。');
+  if(rowingCorrection.isOpen())rowingCorrection.close();else void rowingCorrection.prepare(current,stream);
+  return tr('Finding your direction. Keep both shoulders visible.','正在重新定位，请让双肩入镜。');
+ }
+ if(!rowingCorrection.isOpen())return tr('Say start correction first.','请先说开始纠错。');
+ if(command==='end'){rowingCorrection.close();return tr('Correction ended.','纠错已结束。');}
+ if(command==='pause'){rowingCorrection.pause();return tr('Correction paused. Your direction and stage are saved.','纠错已暂停，朝向和阶段已保留。');}
+ if(command==='review'){rowingCorrection.pause('review');return tr('Correction paused. Come back to view the expert, then say resume correction.','纠错已暂停。可以返回手机查看教练，准备好后说继续纠错。');}
+ if(command==='resume'){rowingCorrection.resume();return tr('Return to your position. Your direction stays locked.','请回到练习位置，朝向保持锁定。');}
+ if(command==='next-stage'||command==='previous-stage'){rowingCorrection.nextStage(command==='next-stage'?1:-1);return null;}
+ if(command==='repeat-demo'){rowingCorrection.repeatDemo();return null;}
+ if(command==='repeat'){rowingCorrection.repeat();return null;}
+}
 async function updateCameraDevices(){
     let devices=[];
     try{devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');}catch{}
