@@ -74,9 +74,18 @@ export function assessRowing(id,p,ref,width,height,{world=null,source=null,yaw=0
  // into the lens. It is a screen-space cue, not an inferred elbow bend.
  const positionMetrics=[];
  if(source){
-  const ghost=fitRowingReference(ref,actual,width,height,chooseRowingSide(p));
-  const base=[11,23,12,13].find(i=>i!==11&&Math.hypot(ref[i].x-ref[11].x,ref[i].y-ref[11].y)>.09);
-  const scale=base?Math.hypot(ghost[base].x-ghost[11].x,ghost[base].y-ghost[11].y)/Math.hypot(ref[base].x-ref[11].x,ref[base].y-ref[11].y):0;
+  // Calibrate height from the torso/shoulders, never from the arm being corrected.
+  // Scaling by that arm makes its target move when the user raises the elbow.
+  const scales=[];
+  for(const [a,b]of [[11,23],[12,24],[11,12]]){
+   if(!actual[a]||!actual[b])continue;
+   const projected=Math.hypot(ref[a].x-ref[b].x,ref[a].y-ref[b].y);
+   const full=Math.hypot(...source[rowingIds.indexOf(a)].map((v,i)=>v-source[rowingIds.indexOf(b)][i]));
+   const live=Math.hypot(actual[a].x-actual[b].x,actual[a].y-actual[b].y);
+   if(projected>.09&&projected/full>=.45&&live>=height*.045)scales.push(live/projected);
+  }
+  scales.sort((a,b)=>a-b);const middle=Math.floor(scales.length/2);
+  const scale=scales.length?(scales.length%2?scales[middle]:(scales[middle-1]+scales[middle])/2):0;
   for(const side of [0,1]){
    const shoulder=11+side,elbow=13+side,a=actual[shoulder],b=actual[elbow];if(!a||!b||!scale)continue;
    const length=Math.hypot(...source[2+side].map((v,i)=>v-source[side][i]))*scale;
