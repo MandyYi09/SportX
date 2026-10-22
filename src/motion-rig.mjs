@@ -125,14 +125,15 @@ function skeleton(state,{twoHands=false,rowing=false,tennis=false,clay=false}={}
 function rowingState(clip,t) {
  const half=clip.track==='rowing-half',full=clip.track==='rowing-full';
  const timeline=full?[.3,1.2,3.4,4.6,6.4,8.1,10.6]:half?[.3,1.1,3.6,5.1,7.3,9.0,12.2]:[.8,2.0,3.6,4.8,6.4,7.8,9.8];
- // Fit the modest slide visible in these recordings; do not invent a deeper catch.
- const lean=full?.55:half?.40:.03,slide=full?.16:half?.06:0;
+ // Illustrative slide travel: half stroke uses half the full-stroke rail
+ // travel. Feet stay planted while the pelvis and its attached seat move.
+ const lean=full?.55:half?.40:.03,slide=full?.42:half?.21:0;
  const make=(reach,tilt,shift,handHeight=1.0)=>({
   yaw:-Math.PI/2,hipYaw:-Math.PI/2,lean:tilt,hip:[.25-shift,.65,0],
   right:[reach,handHeight,.10],left:[reach,handHeight+.035,-.10],racket:[0,0,1],
   leftFoot:[-.53,.47,-.13],rightFoot:[-.53,.47,.13],
  });
- const finish=make(.13,-.14,0),away=make(-.40,.02,0,.97),catchPose=make(-.66,lean,slide,1.02);
+ const finish=make(.13,-.14,0),away=make(-.40,.02,0,.97),catchPose=make(-.66-(full?.26:half?.15:0),lean,slide,1.02);
  const track=[[timeline[0],finish],[timeline[1],finish],[timeline[2],catchPose],[timeline[3],make(-.48,full?.10:.02,0,1.02)],[timeline[4],finish],[timeline[5],make(.12,-.08,0,.92)],[timeline[6],make(.13,-.14,0)]];
  if(!full&&!half)track[2][1]=make(-.40,.03,0,1.03);
  // A hands-away interval before the body and seat move forward.

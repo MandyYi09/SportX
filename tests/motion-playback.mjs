@@ -89,6 +89,25 @@ for(const clip of motionClips){
  nearFrame(sampleMotion(clip.id,-1).coords,sampleMotion(clip.id,0).coords);
  nearFrame(sampleMotion(clip.id,duration+10).coords,sampleMotion(clip.id,duration).coords);
 }
+// Sliding strokes move the pelvis towards fixed feet after hands-away,
+// then return it on the drive. Arms-only must never move the seat.
+const slideRanges={};
+for(const id of ['rowing-arms','rowing-half','rowing-full']){
+ const clip=motionById[id],duration=clip.sourceEnd-clip.sourceStart;
+ const frames=Array.from({length:401},(_,i)=>sampleMotion(id,duration*i/400));
+ const hips=frames.map(frame=>(frame.coords[6][0]+frame.coords[7][0])/2);
+ slideRanges[id]=Math.max(...hips)-Math.min(...hips);
+ near(hips[0],hips.at(-1));
+ if(id==='rowing-arms')near(slideRanges[id],0);
+ else {
+  assert.ok(slideRanges[id]>.20,'Sliding strokes need visible pelvis travel');
+  const awayTime=id==='rowing-full'?2.3:2.35;
+  near(sampleMotion(id,awayTime-clip.sourceStart).coords[6][0],hips[0]);
+  const catchIndex=hips.indexOf(Math.min(...hips));
+  assert.ok(frames[catchIndex].coords[8][1]>frames[0].coords[8][1],'Knees bend as the seat approaches the fixed feet');
+ }
+}
+near(slideRanges['rowing-full']/slideRanges['rowing-half'],2,.002);
 assert.equal(practicePoses.find(p=>p.id==='clay-lower').zh[0],'第二次完整动作');
 assert.equal(practicePoses.find(p=>p.id==='rowing-half').zh[0],'1/2 划');
 assert.equal(sampleMotion('reach',0),null);
