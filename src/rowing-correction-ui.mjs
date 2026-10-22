@@ -15,7 +15,7 @@ function getDetector(){
  })().catch(error=>{detectorPromise=null;throw error;});
 }
 const connections=[[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,25],[25,27],[24,26],[26,28]];
-export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"male",onDirection=()=>{}}){
+export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"male",onDirection=()=>{},onPlayback=()=>{},onControls=()=>{}}){
  const dialog=document.createElement('dialog');dialog.id='rowing-correction';dialog.className='rowing-correction';document.body.append(dialog);
  const orientation=new RowingOrientation(),preparation=new RowingOrientation(),feedbackCycle=new RowingFeedbackCycle(),limbFeedback=new RowingLimbFeedback();
  let flashes=[],activeErrors=[],feedbackBadge,arrowsLayer,chosenCue=null,cueSince=0;
@@ -28,23 +28,24 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
  const tr=(en,zh)=>getLanguage()==='zh'?zh:en;
  let video,canvas,status,metrics,steps,help,retry,opacityControl,expertOverlay,lastPose=null,lastWorld=null,modelFailed=false;
  let relocate,phaseTitle,phaseNote,lastAssessment;
- const speech=createRowingSpeech({getLanguage,onState:syncVoice});
+ const speech=createRowingSpeech({getLanguage,onState:syncVoice,onPlayback});
+ let reviewMode=null,awaitingReturn=false,returnSince=null,speechHeld=false,voiceAvailable=false,quietUntil=0;
  let speechContext='',entryDemo=true;
  function syncVoice(){
   const {enabled,blocked}=speech.state();
   for(const button of document.querySelectorAll('[data-rowing-voice]')){
-   button.setAttribute('aria-pressed',String(enabled));
-   const label=blocked?tr('Tap for voice','点此启用语音'):tr(enabled?'Voice · On':'Voice · Off',enabled?'语音 · 开':'语音 · 关');
+   button.disabled=!voiceAvailable;button.setAttribute('aria-pressed',String(voiceAvailable&&enabled));
+   const label=!voiceAvailable?tr('Voice · N/A','语音 · 未启用'):blocked?tr('Tap for voice','点此启用语音'):tr(enabled?'Voice · On':'Voice · Off',enabled?'语音 · 开':'语音 · 关');
    if(button.textContent!==label)button.textContent=label;
-   button.title=tr('Prerecorded synthetic voice · follows selected language','预制合成语音 · 跟随所选语言');
+   button.title=!voiceAvailable?tr('Enable voice control first','请先开启语音控制'):tr('Prerecorded synthetic voice · follows selected language','预制合成语音 · 跟随所选语言');
    button.onclick=()=>{speechContext='';if(blocked)speech.unlock();else speech.setEnabled(!enabled);};
   }
  }
  const hasCamera=()=>rowActive&&!!(dialog.open?returnStream:prepStream)?.getVideoTracks().some(track=>track.readyState==='live');
- function say(id,options={}){if(document.hidden||!hasCamera()){speech.stop();return;}speech.request(id,options);}
- const gesture=e=>{if(e.target.closest('#camera')||hasCamera()&&e.target.closest('#start-rowing-correction,[data-preparation-retry],[data-pose],[data-language],[data-rowing-voice]'))speech.unlock();};
+ function say(id,options={}){if(!voiceAvailable||document.hidden||!hasCamera()||speechHeld||performance.now()<quietUntil||reviewMode||awaitingReturn){speech.stop();return;}speech.request(id,options);}
+ const gesture=e=>{if(e.target.closest('#camera,[data-voice-control]')||hasCamera()&&e.target.closest('#start-rowing-correction,[data-preparation-retry],[data-pose],[data-language],[data-rowing-voice]'))speech.unlock();};
  document.addEventListener('click',gesture,true);
- const languageObserver=new MutationObserver(()=>{speech.stop();speechContext='';syncVoice();});
+ const languageObserver=new MutationObserver(()=>{speech.stop();speechContext='';syncVoice();syncPause();});
  languageObserver.observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
  syncVoice();
  function phase(key,en,zh,noteEn,noteZh){
@@ -70,6 +71,7 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
  }
  function stopStream(){stream?.getTracks().forEach(t=>{t.onended=null;t.stop();});stream=null;if(video)video.srcObject=null;}
  function close(){
+  reviewMode=null;awaitingReturn=false;returnSince=null;
   speech.reset();speechContext='';
   const wasOpen=dialog.open,resume=returnStream;returnStream=null;
   generation++;cancelAnimationFrame(frame);stopStream();orientation.reset();feedbackCycle.reset();limbFeedback.reset();flashes=[];dialog.close();
@@ -127,6 +129,7 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
  preparationBar.querySelector('[data-preparation-retry]').textContent=tr('Retry','重试');
  preparationBar.querySelector('[data-preparation-retry]').onclick=()=>{if(prepStream)void prepare(prepId,prepStream);};
  function selectCheckpoint(i){
+  reviewMode=null;awaitingReturn=false;returnSince=null;syncPause();
   speech.reset();speechContext='';entryDemo=true;
   feedbackCycle.reset();limbFeedback.reset();flashes=[];activeErrors=[];chosenCue=null;
   index=i;steps.querySelectorAll('button').forEach((b,n)=>b.setAttribute('aria-pressed',String(i===n)));
@@ -142,14 +145,14 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   const ghost=fitRowingReference(ref,assessment.actual,w,h,assessment.side);
   const line=(a,b,color,width)=>{ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap='round';ctx.stroke();};
   lastPose=p;
-  const valid=view.locked&&!view.offAxis&&!assessment.small&&assessment.metrics.length>0&&!modelFailed;
-  const canConfirm=assessment.metrics.some(m=>!m.guidanceOnly);
-  const anyError=assessment.metrics.some(m=>!m.close),allClose=canConfirm&&!anyError;
-  const cycle=advance?feedbackCycle.update(now,{valid:valid&&(canConfirm||anyError),close:allClose}):feedbackCycle.read();
+  const valid=!reviewMode&&!awaitingReturn&&view.locked&&!view.offAxis&&!assessment.small&&assessment.metrics.length>0&&!modelFailed;
+  const anyError=assessment.metrics.some(m=>!m.close),allClose=!anyError;
+  const cycle=advance?feedbackCycle.update(now,{valid,close:allClose}):feedbackCycle.read();
   if(advance){flashes=limbFeedback.update(assessment.metrics,valid&&cycle.showHints,now);activeErrors=limbFeedback.errors(assessment.metrics,valid&&cycle.showHints,now);}
   const displayHints=valid&&cycle.showHints;
-  const opacity=cycle.mode==='demonstrate'?.95:Number(opacityControl.value);
-  video.style.opacity=cycle.mode==='demonstrate'?'.30':'1';
+  const emphasize=reviewMode==='review'||cycle.mode==='demonstrate';
+  const opacity=emphasize?.95:Number(opacityControl.value);
+  video.style.opacity=emphasize?'.30':'1';
   dialog.dataset.feedback=cycle.mode;canvas.dataset.expertOpacity=String(opacity);
   if(!modelFailed)try{
    expertOverlay??=createRowingExpertOverlay();
@@ -174,6 +177,10 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   return assessment;
  }
  function update(assessment){
+  if(reviewMode||awaitingReturn){
+   phase(reviewMode==='review'?'review':reviewMode?'paused':'returning',reviewMode==='review'?'View the expert':reviewMode?'Correction paused':'Return to your position',reviewMode==='review'?'查看专家示范':reviewMode?'纠错已暂停':'请回到练习位置',reviewMode?'Direction and stage saved. Resume when ready.':'Waiting for your joints; direction stays locked.',reviewMode?'朝向与阶段已保留，准备好后继续纠错。':'正在等待关节入镜，朝向保持锁定。');
+   metrics.replaceChildren();feedbackBadge.hidden=true;status.hidden=true;relocate.hidden=true;return;
+  }
   const view=orientation.read(),available=assessment.metrics,cycle=feedbackCycle.read();
   const valid=view.locked&&!view.offAxis&&!assessment.small&&available.length>0&&!modelFailed;
   const canConfirm=available.some(m=>!m.guidanceOnly);
@@ -188,7 +195,7 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   }else if(!Object.keys(assessment.actual).length){
    phase('unclear','Looking for your joints','正在寻找关节','Move back into view; your direction stays locked.','请回到画面中；朝向仍保持锁定。');
   }else if(available.length&&!canConfirm&&available.every(m=>m.close)){
-   phase('limited','Arm height checked','已检查上臂高度','Depth hides the elbow bend; visible height is still checked.','屈肘角度被遮挡，仍会检查可见的手臂高度。');
+   phase('limited',cycle.mode==='aligned'?'✓ Upper-arm height aligned':'Hold the arm height',cycle.mode==='aligned'?'✓ 上臂高度已对齐':'保持上臂高度','Keep this height. Elbow bend cannot be measured from this view.','保持这个高度即可；当前机位无法测量屈肘角度。');
   }else if(cycle.mode==='aligned'&&valid){
    phase('aligned',partial?'✓ Visible parts aligned':'✓ Aligned',partial?'✓ 可见部位已对齐':'✓ 已对齐','Hold this position.','保持这个姿势。');
   }else if(valid){
@@ -206,13 +213,13 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
     const labels={ 'left-arm':['Left arm corrected','左臂已调整'],'right-arm':['Right arm corrected','右臂已调整'],'left-leg':['Left leg corrected','左腿已调整'],'right-leg':['Right leg corrected','右腿已调整']};
     feedbackBadge.textContent='✓ '+flashes.map(f=>f.metrics.every(m=>m.guidanceOnly)?tr(f.key.startsWith('right')?'Right arm height corrected':'Left arm height corrected',f.key.startsWith('right')?'右臂高度已调整':'左臂高度已调整'):tr(...labels[f.key])).join(tr(' · ','、'));feedbackBadge.dataset.state='good';feedbackBadge.hidden=false;
    }else if(valid&&cycle.mode==='aligned'){
-    feedbackBadge.textContent=tr(partial?'✓ Visible parts aligned':'✓ Aligned',partial?'✓ 可见部位已对齐':'✓ 已对齐');feedbackBadge.dataset.state='good';feedbackBadge.hidden=false;
+    feedbackBadge.textContent=!canConfirm?tr('✓ Upper-arm height aligned','✓ 上臂高度已对齐'):tr(partial?'✓ Visible parts aligned':'✓ Aligned',partial?'✓ 可见部位已对齐':'✓ 已对齐');feedbackBadge.dataset.state='good';feedbackBadge.hidden=false;
    }
   }
   let note='';
   if(modelFailed)note=tr('Expert model unavailable. Reload with WebGL enabled.','专家模型无法显示，请启用 WebGL 后刷新。');
   else if(view.locked&&assessment.small)note=tr('Move a little closer so your joints are clearer.','请稍微靠近，让关节更清晰。');
-  else if(view.locked&&assessment.occluded.length&&!available.some(m=>!m.close))note=tr('Some joints point toward the camera; comparing only clear segments.','部分肢段朝向镜头，仅比较能看清的部位。');
+  else if(view.locked&&assessment.occluded.length&&!available.some(m=>!m.close))note=tr('Visible joints are tracked; depth prevents some angle measurements.','可见关节已识别；部分角度因朝向镜头而无法测量。');
   else if(assessment.missing.length)note=tr('Not clear: ','尚未看清：')+assessment.missing.map(p=>tr(p.en,p.zh)+(p.reason==='outside'?tr(' (out of frame)','（画面外）'):'')).join(tr(', ','、'));
   else if(!view.locked)note=tr('The expert follows your horizontal direction.','专家模型正在跟随你的水平朝向。');
   status.textContent=note;status.hidden=!note;
@@ -225,7 +232,7 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   }else if(valid&&flashes.length){
    const flash=flashes[0],heightOnly=flash.metrics.every(m=>m.guidanceOnly);
    say(`confirmed-${flash.key}${heightOnly?'-height':''}`,{delay:0,repeatMs:Infinity});speechContext='confirmed';
-  }else if(valid&&cycle.mode==='aligned'){
+  }else if(valid&&cycle.mode==='aligned'&&canConfirm){
    say(partial?'aligned-visible':'aligned',{delay:0,repeatMs:Infinity});speechContext='aligned';
   }else if(valid&&activeErrors.length){
    const metric=activeErrors.find(m=>m.key===chosenCue)||activeErrors[0];
@@ -249,10 +256,17 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
  }
  function track(now,token){
   if(token!==generation||!dialog.open||!stream)return;
+  if(reviewMode){feedbackCycle.pause();limbFeedback.pause();update(lastAssessment);frame=requestAnimationFrame(t=>track(t,token));return;}
   if(video.readyState>=2&&video.currentTime!==lastTime&&now-lastDetect>100){
    lastTime=video.currentTime;lastDetect=now;
    try{
     const result=detector.detectForVideo(video,now),p=result.landmarks[0];lastWorld=result.worldLandmarks?.[0]||null;
+    if(awaitingReturn){
+     const visible=p&&[11,12].some(s=>[s,s+2].every(j=>(p[j]?.visibility??0)>.65&&p[j].x>.02&&p[j].x<.98&&p[j].y>.02&&p[j].y<.98));
+     if(!visible)returnSince=null;else returnSince??=now;
+     if(returnSince===null||now-returnSince<600){update(lastAssessment);frame=requestAnimationFrame(t=>track(t,token));return;}
+     awaitingReturn=false;returnSince=null;orientation.movedSince=null;orientation.reposition=false;
+    }
     orientation.update(estimateRowingYaw(p,lastWorld,lateral),now);
     lastAssessment=draw(p,now,true);
     // Clear stale metrics immediately when direction or tracking becomes invalid.
@@ -276,7 +290,28 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
  document.addEventListener('visibilitychange',()=>{if(document.hidden){speech.stop();speechContext='';feedbackCycle.pause();limbFeedback.pause();flashes=[];if(feedbackBadge)feedbackBadge.hidden=true;}});
  dialog.addEventListener('cancel',e=>{e.preventDefault();close();});
  window.addEventListener('pagehide',()=>{disposing=true;cancelPreparation();close();speech.dispose();languageObserver.disconnect();document.removeEventListener('click',gesture,true);expertOverlay?.dispose();expertOverlay=null;});
+ function syncPause(){
+  dialog.dataset.review=reviewMode||'';
+  const button=dialog.querySelector('[data-rowing-pause]');if(button)button.textContent=tr(reviewMode?'Resume correction':'Pause correction',reviewMode?'继续纠错':'暂停纠错');
+  const review=dialog.querySelector('[data-rowing-review]');if(review)review.textContent=tr('View demonstration','查看示范');
+ }
+ function pause(mode='paused'){
+  if(!dialog.open)return false;
+  reviewMode=mode;awaitingReturn=false;returnSince=null;speech.reset();speechContext='';feedbackCycle.pause();limbFeedback.pause();flashes=[];activeErrors=[];syncPause();draw(lastPose);update(lastAssessment);return true;
+ }
+ function resume(){
+  if(!dialog.open)return false;
+  reviewMode=null;awaitingReturn=true;returnSince=null;speechContext='';feedbackCycle.pause();limbFeedback.pause();syncPause();draw(lastPose);update(lastAssessment);return true;
+ }
  return {prepare,cancelPreparation,isReady:()=>preparation.read().ready,
+  isOpen:()=>dialog.open,pause,resume,
+  setVoiceAvailable(value){if(voiceAvailable===value)return;voiceAvailable=value;speech.reset();speechContext='';if(value)speech.unlock();syncVoice();},
+  holdSpeech(value){speechHeld=value;if(value)speech.stop();else quietUntil=0;speechContext='';},
+  interruptSpeech(){quietUntil=performance.now()+1800;speech.stop();speechContext='';},
+  mirror(value){mirrored=value;syncMirror();},
+  nextStage(delta=1){if(!dialog.open)return null;selectCheckpoint((index+delta+rowingCheckpoints[id].length)%rowingCheckpoints[id].length);return rowingCheckpoints[id][index];},
+  repeat(){speech.reset();speechContext='';},
+  repeatDemo(){if(!dialog.open)return false;selectCheckpoint(index);return true;},
  setPose(poseId,externalStream){
   rowActive=!!rowingCheckpoints[poseId];preparationBar.hidden=!rowActive;syncMirror();syncVoice();
   const b=document.getElementById('start-rowing-correction');if(b)preparationBar.append(b);
@@ -298,5 +333,10 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   retry.onclick=relocate.onclick=()=>close();
   rowingCheckpoints[id].forEach((key,i)=>{const b=document.createElement('button');b.type='button';b.textContent=`${i+1}. ${tr(key.en,key.zh)}`;b.onclick=()=>selectCheckpoint(i);steps.append(b);});
   dialog.showModal();selectCheckpoint(0);update(lastAssessment);void startLockedCamera(external);
+  const bar=dialog.querySelector('.rowing-voice-bar');
+  for(const[action,en,zh,handler]of [['pause','Pause correction','暂停纠错',()=>reviewMode?resume():pause()],['review','View demonstration','查看示范',()=>pause('review')]]){
+   const button=document.createElement('button');button.type='button';button.className='rowing-voice';button.setAttribute(`data-rowing-${action}`,'');button.textContent=tr(en,zh);button.onclick=handler;bar.append(button);
+  }
+  onControls(bar);
  },close};
 }

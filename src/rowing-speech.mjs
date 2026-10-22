@@ -16,11 +16,13 @@ export function missingSpeechId(joint){
  return name.endsWith('wrist')?`framing-${name}`:`tracking-${name}`;
 }
 // A single current intent replaces stale speech. There is no growing playback queue.
-export function createRowingSpeech({getLanguage,audio=new Audio(),now=()=>performance.now(),schedule=setTimeout,cancel=clearTimeout,onState=()=>{}}){
+export function createRowingSpeech({getLanguage,audio=new Audio(),now=()=>performance.now(),schedule=setTimeout,cancel=clearTimeout,onState=()=>{},onPlayback=()=>{}}){
  let enabled=true,unlocked=false,blocked=false,language=getLanguage(),intent=null,timer=null,playing=null,token=0,disposed=false;
  const last=new Map();audio.preload='auto';
  const state=()=>({enabled,blocked});
- function halt(){token++;if(timer!==null)cancel(timer);timer=null;audio.pause();audio.removeAttribute('src');audio.load();playing=null;}
+ let audible=false;
+ function playback(active,text=''){if(audible!==active){audible=active;onPlayback(active,text);}}
+ function halt(){token++;if(timer!==null)cancel(timer);timer=null;audio.pause();audio.removeAttribute('src');audio.load();playing=null;playback(false);}
  function stop(){halt();intent=null;}
  function notify(){onState(state());}
  function arm(){
@@ -33,11 +35,12 @@ export function createRowingSpeech({getLanguage,audio=new Audio(),now=()=>perfor
  function play(){
   if(!intent||!enabled||blocked||disposed)return;
   const active=intent,stamp=++token;playing=active.id;
+  playback(true,rowingSpeechById[active.id].text[language]);
   audio.src=new URL(`./assets/audio/rowing/${language}/${active.id}.mp3`,import.meta.url).href;
-  audio.onended=()=>{if(stamp!==token)return;playing=null;arm();};
-  audio.onerror=()=>{if(stamp!==token)return;playing=null;blocked=true;notify();};
+  audio.onended=()=>{if(stamp!==token)return;playing=null;playback(false);arm();};
+  audio.onerror=()=>{if(stamp!==token)return;playing=null;playback(false);blocked=true;notify();};
   let promise;try{promise=audio.play();}catch(e){promise=Promise.reject(e);}
-  Promise.resolve(promise).then(()=>{if(stamp===token)last.set(`${language}:${active.id}`,now());}).catch(()=>{if(stamp!==token)return;playing=null;blocked=true;notify();});
+  Promise.resolve(promise).then(()=>{if(stamp===token)last.set(`${language}:${active.id}`,now());}).catch(()=>{if(stamp!==token)return;playing=null;playback(false);blocked=true;notify();});
  }
  function request(id,{delay=600,repeatMs=10000}={}){
   if(disposed)return;
