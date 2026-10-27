@@ -39,7 +39,7 @@ let mobilityMode = 'stretch';
 const activeCategory = () => filter === 'mobility' ? mobilityMode : filter;
 let current = 'reach', filter = 'all', stream = null, landmarker = null, starting = false, runId = 0, lastVideo = -1, lastDetect = 0, lastFeedback = 0, remaining = 30, timerId = null, sceneApi = null;
 let modelGender='male';
-try{modelGender=localStorage.getItem('fitai-model-gender')==='female'?'female':'male';}catch{}
+try{modelGender=(localStorage.getItem('sportx-model-gender')??localStorage.getItem('fitai-model-gender'))==='female'?'female':'male';}catch{}
 let cameraFacing='user',cameraDeviceId=null,switchingCamera=false;
 const cameraSwitchButtons=()=>[$('demo-camera-switch'),$('camera-switch')];
 const cameraFlipButtons=[];
@@ -373,7 +373,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) { sto
 registerPoseTranslations(poses);
 document.querySelectorAll('[data-gender]').forEach(button=>{
  button.setAttribute('aria-pressed',String(button.dataset.gender===modelGender));
- button.onclick=()=>{modelGender=button.dataset.gender;try{localStorage.setItem('fitai-model-gender',modelGender);}catch{}
+ button.onclick=()=>{modelGender=button.dataset.gender;try{localStorage.setItem('sportx-model-gender',modelGender);}catch{}
   document.querySelectorAll('[data-gender]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));sceneApi?.setGender();};
 });
 document.querySelectorAll('[data-language]').forEach(button => button.onclick = () => {

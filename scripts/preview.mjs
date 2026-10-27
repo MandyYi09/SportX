@@ -9,7 +9,7 @@ const root=path.resolve(get('--directory','src')),port=Number(get('--port',secur
 const host=get('--host','0.0.0.0');
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.bin':'application/octet-stream','.png':'image/png','.jpg':'image/jpeg','.mp4':'video/mp4','.mp3':'audio/mpeg','.wav':'audio/wav'};
 const handler=async(req,res)=>{try{
- if(req.url==='/fitai-dev-ca.cer'){const certificate=await fs.readFile('.local/https/fitai-dev-ca.cer');res.writeHead(200,{'Content-Type':'application/x-x509-ca-cert'});res.end(certificate);return;}
+ if(req.url==='/sportx-dev-ca.cer'){const certificate=await fs.readFile('.local/https/sportx-dev-ca.cer');res.writeHead(200,{'Content-Type':'application/x-x509-ca-cert'});res.end(certificate);return;}
  const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);let file=path.resolve(root,'.'+pathname);
  if(file!==root&&!file.startsWith(root+path.sep)){res.writeHead(403);res.end();return;}
  let info=await fs.stat(file);if(info.isDirectory()){file=path.join(file,'index.html');info=await fs.stat(file);}

@@ -3,7 +3,7 @@ import {createVoiceControl,voiceCommands} from './voice-control.mjs';
 export function createVoiceControls({getLanguage,onCommand,onAnnouncement=()=>{},onAvailability=()=>{},onInterrupt=()=>{}}){
  const mounts=new Set(),tr=(en,zh)=>getLanguage()==='zh'?zh:en;
  let utterance=null,finishAnnouncement=null,disposed=false,announcementVersion=0,recognitionLanguage=getLanguage();
- try{const saved=localStorage.getItem('fitai-speech-language');if(saved==='en'||saved==='zh')recognitionLanguage=saved;}catch{}
+ try{const saved=(localStorage.getItem('sportx-speech-language')??localStorage.getItem('fitai-speech-language'));if(saved==='en'||saved==='zh')recognitionLanguage=saved;}catch{}
  const controller=createVoiceControl({getLanguage:()=>recognitionLanguage,onInterrupt:()=>{
   announcementVersion++;finishAnnouncement?.();onAnnouncement(false);onInterrupt();
  },onCommand:async command=>{
@@ -49,7 +49,7 @@ export function createVoiceControls({getLanguage,onCommand,onAnnouncement=()=>{}
   const root=document.createElement('section');root.className='voice-controls';
   root.innerHTML='<div class="voice-control-line"><button type="button" data-voice-control aria-pressed="false"></button><label class="speech-language"><span data-speech-label></span><select data-speech-language aria-label="Speech recognition language"><option value="en">English</option><option value="zh">中文</option></select></label><span data-voice-state role="status" aria-live="polite"></span></div><p data-voice-heard hidden></p><details><summary></summary><p data-voice-help></p><small data-voice-service></small></details>';
   parent.append(root);mounts.add(root);root.querySelector('button').onclick=()=>{if(controller.state().enabled){controller.disable();finishAnnouncement?.();}else controller.enable();};render();
-  root.querySelector('select').onchange=event=>{recognitionLanguage=event.target.value;try{localStorage.setItem('fitai-speech-language',recognitionLanguage);}catch{}controller.languageChanged();render();};
+  root.querySelector('select').onchange=event=>{recognitionLanguage=event.target.value;try{localStorage.setItem('sportx-speech-language',recognitionLanguage);}catch{}controller.languageChanged();render();};
  }
  const languageObserver=new MutationObserver(render);languageObserver.observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
  const visibility=()=>{controller.setVisible(!document.hidden);if(document.hidden)finishAnnouncement?.();};document.addEventListener('visibilitychange',visibility);

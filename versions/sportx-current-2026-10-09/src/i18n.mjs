@@ -15,7 +15,7 @@ const zh = {
   'Clay Shooting': '打飞碟', 'CLAY SHOOTING': '打飞碟', 'EMPTY-HAND MOBILITY': '空手活动', 'No equipment': '无需器械',
   'Clay Shooting · empty-hand movement': '打飞碟 · 空手动作观察',
   'An empty-hand mobility study for this sport: relaxed standing, arm movement and a small torso turn. Use no firearm or equipment. These illustrative poses do not teach aiming or firing and are not validated technique targets.': '本模式提供与这项运动相关的空手活动观察：放松站立、手臂活动和小幅转体。请勿使用枪械或器械。这些示意姿势不教授瞄准或击发，也不是经过验证的技术标准。',
-  'Sports Form — Movement practice prototype': 'Sports Form — 动作练习原型',
+  'SportX — Movement practice prototype': 'SportX — 动作练习原型',
   'Language': '语言',
   'An interactive movement practice prototype with 3D demonstrations and optional on-device pose feedback.': '互动动作练习原型，提供 3D 示范和可选的设备端姿态反馈。',
   'Your practice': '你的练习', 'How it works ↗': '使用说明 ↗',

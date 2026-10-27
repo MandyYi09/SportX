@@ -1,11 +1,11 @@
-# Sports Form 历史版本
+# SportX 历史版本
 
-`fitai-4e6b9f8/` 是 Git 提交 `4e6b9f8`（`folder structure and better use of feedback`）的完整文件快照，也就是历史记录截图第一排所指的版本。它保留了该提交当时的源码、测试、构建脚本和配置，并非从当前复杂版筛掉某些练习模式。
+`sportx-4e6b9f8/` 是 Git 提交 `4e6b9f8`（`folder structure and better use of feedback`）的完整文件快照，也就是历史记录截图第一排所指的版本。它保留了该提交当时的源码、测试、构建脚本和配置，并非从当前复杂版筛掉某些练习模式。
 
 在仓库根目录运行：
 
 ```sh
-cd versions/fitai-4e6b9f8
+cd versions/sportx-4e6b9f8
 npm run dev
 ```
 
