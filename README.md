@@ -1,4 +1,4 @@
-# fitAI movement practice prototype
+# Sports Form movement practice prototype
 
 Local network preview: run `npm run dev`, then open the printed LAN address on a phone connected to the same LAN. Use the computer's current IPv4 address, which can change with DHCP. The preview listens on all interfaces by default; use `npm run dev -- --host 127.0.0.1` for a loopback-only preview. Allow TCP port 5187 on private networks if Windows Firewall blocks other devices. HTTP LAN access supports the movement library and 3D playback; phone camera access requires a trusted HTTPS connection. Phone layouts support horizontal movement selection, touch-sized controls and portrait/landscape viewing.
 

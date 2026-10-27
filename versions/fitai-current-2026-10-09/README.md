@@ -1,4 +1,4 @@
-# fitAI movement practice prototype
+# Sports Form movement practice prototype
 
 A browser-only prototype using Three.js 0.180.0 and MediaPipe Tasks Vision 0.10.21.
 
