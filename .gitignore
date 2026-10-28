@@ -5,3 +5,6 @@ artifacts/
 source/
 /changes/
 /.local/
+
+# Local generated figures and review exports.
+/output/
