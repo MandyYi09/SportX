@@ -22,6 +22,7 @@ import {fitYogaArms} from './yoga-proportions.mjs';
 import {fitMobilityArms,orientMobilityHand} from './mobility-proportions.mjs';
 import {createShootingProp,shootingGrip,shootingRearGrip,shootingEnvelope} from './shooting-model.mjs';
 import {rowingGrip} from './equipment-grip.mjs';
+import {rowingDisplaySample} from './rowing-display.mjs';
 import {getLanguage, setLanguage, registerPoseTranslations, startLocalization, refreshLocalization} from './i18n.mjs?v=49';
 const selectedPose = () => poses.find(p => p.id === current);
 let voiceControls=null;
@@ -405,7 +406,7 @@ async function initThree() {
         for(const x of [-.27,.27])for(const z of [-.18,.32]){const leg=new THREE.Mesh(new THREE.CylinderGeometry(.028,.028,.59,10),propMaterial);leg.position.set(x,.32,z);chairGroup.add(leg);}
         const sculls=[-1,1].map(side=>{
             const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,1,12),propMaterial);group.add(shaft);
-            const handle=new THREE.Mesh(new THREE.CylinderGeometry(rowingGrip.radius,rowingGrip.radius,.15,16),propMaterial);group.add(handle);
+            const handle=new THREE.Mesh(new THREE.CylinderGeometry(rowingGrip.radius,rowingGrip.radius,.15,16),new THREE.MeshStandardMaterial({color:0xd7c383,roughness:.8}));group.add(handle);
             const blade=new THREE.Mesh(new THREE.SphereGeometry(1,24,12),new THREE.MeshStandardMaterial({color:side<0?0xc2d8e1:0xe7d9b7,roughness:.6}));blade.scale.set(.23,.055,.12);group.add(blade);
             return {side,shaft,handle,blade,end:new THREE.Vector3()};
         });
@@ -434,7 +435,12 @@ async function initThree() {
         });
         function updateProps(){
             const type=selectedPose().type;chairGroup.visible=type==='gentle';hull.visible=type==='rowing';racket.visible=type==='tennis';
-            boatSeat.visible=seatRails.visible=type==='rowing';boatSeat.position.copy(coords[6]).add(coords[7]).multiplyScalar(.5);boatSeat.position.y-=motionSample?.captured?.075:.09;seatRails.position.y=boatSeat.position.y-.045-.515;hull.position.y=motionSample?.captured?.08:.52;
+            boatSeat.visible=seatRails.visible=type==='rowing';
+            boatSeat.position.copy(coords[6]).add(coords[7]).multiplyScalar(.5);boatSeat.position.y-=.09;
+            if(motionSample?.rowingSeat)boatSeat.position.fromArray(motionSample.rowingSeat);
+            // Only the carriage slides; the rails stay fixed in the boat frame.
+            seatRails.position.set(0,boatSeat.position.y-.045-.515,boatSeat.position.z);
+            hull.position.y=motionSample?.captured?.08:.52;
             oarlocks.forEach((lock,i)=>{lock.root.visible=type==='rowing';if(type==='rowing'&&motionSample?.captured){lock.root.position.fromArray(motionSample.oars[i].pivot).sub(lock.pivot);}else lock.root.position.set(0,0,0);});
             shotgun.visible=type==='clay';
             for(const hand of hands){
@@ -501,7 +507,7 @@ async function initThree() {
                     item.shaft.position.copy(start).add(item.end).multiplyScalar(.5);
                     item.shaft.scale.y=rowingGrip.oarLength;
                     item.shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(...attachment.axis));
-                    item.handle.position.fromArray(attachment.hand.center);
+                    item.handle.position.fromArray(attachment.hand.center).addScaledVector(new THREE.Vector3(...attachment.axis),rowingGrip.handleLength/2-rowingGrip.buttOffset);
                     item.handle.quaternion.copy(item.shaft.quaternion);
                     item.blade.position.copy(item.end);
                     continue;
@@ -602,7 +608,7 @@ async function initThree() {
         } }; setModelTheme(); new ResizeObserver(() => { const { width, height } = host.getBoundingClientRect();hostSize={width,height}; if (!width || !height) return; renderer.setSize(width, height); camera.aspect = width / height; camera.position.z = Math.max(6.8, 4.6 / camera.aspect); camera.updateProjectionMatrix(); }).observe(host);
         let previousRender=performance.now();
         renderer.setAnimationLoop(() => {const now=performance.now(),delta=Math.min(.1,(now-previousRender)/1000);previousRender=now;if (document.hidden || host.hidden || $('rowing-correction')?.open) return;
-            motionSample=motionPlayer.sample();
+            motionSample=rowingDisplaySample(motionPlayer.sample(),current,flipped);
             if(motionSample)neutralCoords.forEach((v,i)=>v.fromArray(motionSample.coords[i]));
             else neutralCoords.forEach((v,i)=>v.lerp(new THREE.Vector3(...target[i]),1-Math.exp(-10*delta)));
             coords.forEach((v,i)=>v.copy(neutralCoords[i]));

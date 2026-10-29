@@ -118,7 +118,7 @@ function skeleton(state,{twoHands=false,rowing=false,tennis=false,clay=false}={}
   grip.wrist=[...coords[4+side]];
  }
  const racketPosition=tennis?sub(tennisHands[1].center,mul(racketDirection,tennisGrip.buttToLowerHand)):add(coords[5],gripOffset);
- const oars=rowing?[-1,1].map((side,i)=>rowingAttachment(coords[4+i],side)):null;
+ const oars=rowing?[-1,1].map((side,i)=>rowingAttachment(coords[4+i],side,null,coords[2+i])):null;
  const equipmentHands=clay?clayProp.hands:oars?.map(oar=>oar.hand)||null;
  return {coords,racketDirection,racketPosition,tennisHands,equipmentHands,oars,clayProp,headAxis:up,bodyForward:forward};
 }
