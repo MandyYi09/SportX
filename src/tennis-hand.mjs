@@ -1,10 +1,12 @@
 import {tennisGrip} from './tennis-grip.mjs';
+import {createRowingHand} from './rowing-hand.mjs';
 
 export function createTennisHand(THREE,material,side) {
  return createWrappedHand(THREE,material,side,tennisGrip);
 }
 
 export function createWrappedHand(THREE,material,side,spec=tennisGrip) {
+ if(spec.thumbAtButt)return createRowingHand(THREE,material,side,spec);
  const root=new THREE.Group();
  const extra=spec.radius-.023;
  const palm=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),material);
@@ -41,6 +43,7 @@ export function createWrappedHand(THREE,material,side,spec=tennisGrip) {
 
 export function placeTennisHand(THREE,hand,frame) {
  hand.setWristOffset?.(frame.wristOffset);
+ hand.setForearm?.(frame);
  hand.root.position.fromArray(frame.center);
  hand.root.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
   new THREE.Vector3(...frame.x),new THREE.Vector3(...frame.y),new THREE.Vector3(...frame.z)));

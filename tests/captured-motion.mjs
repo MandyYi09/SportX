@@ -15,6 +15,10 @@ for(const id of ids){
   [[0,2],[2,4],[1,3],[3,5],[6,8],[8,10],[7,9],[9,11]].forEach(([a,b],i)=>assert.ok(Math.abs(dist(s.coords[a],s.coords[b])-lengths[i])<1e-6,'Source bone length changed'));
   minY=Math.min(minY,...s.coords.map(p=>p[1]));
   if(previous){const delta=Math.max(...s.coords.map((p,i)=>dist(p,previous.coords[i])));maxStep=Math.max(maxStep,delta);if(delta>1e-7)moving++;}
+  assert.equal(s.rowingSeat.length,3,'Rowing capture must expose a seat position');
+  assert.ok(s.rowingSeat.every(Number.isFinite),'Seat coordinates must be finite');
+  assert.ok(Math.abs(s.rowingSeat[0]-(s.coords[6][0]+s.coords[7][0])/2)<1e-6,'Seat follows the hip center');
+  assert.deepEqual(sampleCapturedMotion(id,t,true).rowingSeat,[-s.rowingSeat[0],s.rowingSeat[1],s.rowingSeat[2]],'Mirrored seat follows the reflected boat frame');
   s.equipmentHands.forEach((hand,i)=>assert.ok(dist(hand.wrist,s.coords[4+i])<1e-6));
   s.oars.forEach((oar,i)=>assert.deepEqual(oar.pivot,initial.oars[i].pivot,'Oarlocks must stay fixed'));
   for(const sample of [s,sampleCapturedMotion(id,t,true)]){

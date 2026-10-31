@@ -27,6 +27,10 @@ export async function loadCapturedMotions(){
    track.localShaft=new Vector3(...fitted.clayProp.x).applyQuaternion(rotations[indices.RightHand].clone().invert());
   }
   evaluateTrack(track,0);track.pivotHeight=(positions[indices.LeftHand].y+positions[indices.RightHand].y)/2;
+  if(meta.sport==='rowing'){
+   evaluateTrack(track,captureWindows[id]?.start??0);
+   track.rowingAnchor={feet:positions[indices.LeftFoot].clone().add(positions[indices.RightFoot]).multiplyScalar(.5),hipY:(positions[indices.LeftUpLeg].y+positions[indices.RightUpLeg].y)/2};
+  }
   cache.set(id,track);
  }));
  return ids.map(id=>cache.get(id).meta);
@@ -69,7 +73,17 @@ export function sampleCapturedMotion(id,elapsed=0,flipped=false){
  let result={coords,headPosition:point('Head'),neckPosition:point('Neck'),spine:['Spine','Spine1','Spine2','Spine3','Neck'].map(point),toePositions:[point('LeftToeBase'),point('RightToeBase')],
   headRotation:rotations[indices.Head].toArray(),torsoRotation:rotations[indices.Spine3].toArray(),pelvisRotation:rotations[indices.Hips].toArray(),captured:true,sourceTime:time+meta.frameTime,captureTime:time,gazeReferenceActive:!!captureReferences[id]&&time>=captureReferences[id].captureMountedAt,frameRate:1/meta.frameTime,source:meta.source};
  if(window.track.startsWith('rowing')){
-  const oars=[1,-1].map((side,i)=>rowingAttachment(coords[4+i],side,[-.13,track.pivotHeight,side*.64]));
+  // Express the measured pose in the boat frame: the foot stretcher and
+  // rail height are fixed. A rigid translation preserves all joint angles
+  // and bone lengths while recovering slide travel from the moving feet.
+  const anchor=track.rowingAnchor;
+  const shift=[anchor.feet.x-(coords[10][0]+coords[11][0])/2,anchor.hipY-(coords[6][1]+coords[7][1])/2,anchor.feet.z-(coords[10][2]+coords[11][2])/2];
+  const translate=p=>p.map((v,i)=>v+shift[i]);
+  result.coords=coords.map(translate);
+  for(const key of ['headPosition','neckPosition'])result[key]=translate(result[key]);
+  result.spine=result.spine.map(translate);result.toePositions=result.toePositions.map(translate);
+  result.rowingSeat=[(result.coords[6][0]+result.coords[7][0])/2,anchor.hipY-.085,anchor.feet.z];
+  const oars=[1,-1].map((side,i)=>rowingAttachment(result.coords[4+i],side,[-.13,track.pivotHeight,side*.64],result.coords[2+i]));
   Object.assign(result,{oars,equipmentHands:oars.map(o=>o.hand)});
  }else if(meta.sport==='tennis'){
   Object.assign(result,capturedTennis(coords,rotations[indices.RightHand],track.localShaft,window.track.startsWith('tennis-backhand')));
@@ -79,7 +93,11 @@ export function sampleCapturedMotion(id,elapsed=0,flipped=false){
  }
  if(flipped){
   result=reflectCaptured(result);
-  if(result.oars){result.oars=[-1,1].map((side,i)=>rowingAttachment(result.coords[4+i],side,[.13,track.pivotHeight,side*.64]));result.equipmentHands=result.oars.map(o=>o.hand);}
+  if(result.oars){
+   const reflect=p=>[-p[0],p[1],p[2]];
+   result.oars=result.oars.slice().reverse().map((o,i)=>({...o,pivot:reflect(o.pivot),start:reflect(o.start),end:reflect(o.end),axis:reflect(o.axis),hand:result.equipmentHands[i]}));
+   result.rowingSeat=reflect(result.rowingSeat);
+  }
  }
  return result;
 }

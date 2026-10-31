@@ -1,5 +1,5 @@
 // Geometry-only attachments for the visual rowing and clay demonstrations.
-export const rowingGrip={radius:.023,wrist:[-.085,-.012,0],oarLength:2.25};
+export const rowingGrip={radius:.023,wrist:[-.085,-.012,0],oarLength:2.25,thumbAtButt:true,buttOffset:.055,handleLength:.15};
 export const clayGrip={radius:.035,wrist:[-.097,-.012,0],spacing:.52,rear:[-.09,-.06,0]};
 const add=(a,b)=>a.map((v,i)=>v+b[i]);
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
@@ -17,10 +17,12 @@ function frame(center,x,y,spec){
  return {center,x,y,z,wrist:add(add(center,mul(x,spec.wrist[0])),mul(y,spec.wrist[1])),mirrored:false};
 }
 
-export function rowingAttachment(wrist,side,pivotOverride=null) {
- // The palm stays above the handle instead of rolling into an underhand fist
- // when the elbow drops below the wrist near the end of the stroke.
- const pivot=pivotOverride||[-.13,1,side*.64],direction=[-1,-.4,0];
+export function rowingAttachment(wrist,side,pivotOverride=null,elbow=null) {
+ // Follow the forearm, projected perpendicular to the handle, instead of
+ // imposing a fixed wrist bend throughout the stroke.
+ const pivot=pivotOverride||[-.13,1,side*.64],direction=elbow?sub(wrist,elbow):[-1,0,0];
+ // Keep the grasp pronated even when the measured forearm rises.
+ direction[1]=Math.min(direction[1],-.25*Math.hypot(direction[0],direction[2]));
  let center=add(wrist,mul(unit(direction),.085));
  // Solve the hand and oar together: the shaft passes through the grasp center
  // and the fixed oarlock, while the model wrist stays attached to the palm.
@@ -30,7 +32,8 @@ export function rowingAttachment(wrist,side,pivotOverride=null) {
  }
  const y=unit(sub(pivot,center)),x=perpendicular(direction,y);
  const hand=frame(center,x,y,rowingGrip);
- const start=sub(center,mul(y,.075)),end=add(start,mul(y,rowingGrip.oarLength));
+ if(elbow)hand.forearm=unit(sub(elbow,wrist));
+ const start=sub(center,mul(y,rowingGrip.buttOffset)),end=add(start,mul(y,rowingGrip.oarLength));
  return {hand,pivot,start,end,axis:y};
 }
 
