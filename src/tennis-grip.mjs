@@ -21,6 +21,6 @@ export function mirrorGrip(frame) {
  if(!frame)return null;
  const reflect=v=>[-v[0],v[1],v[2]];
  // Keep a proper rotation; reflect the mesh's local Z separately.
- return {...frame,...(frame.forearm?{forearm:reflect(frame.forearm)}:{}),center:reflect(frame.center),wrist:reflect(frame.wrist),
+ return {...frame,center:reflect(frame.center),wrist:reflect(frame.wrist),
   x:reflect(frame.x),y:reflect(frame.y),z:mul(reflect(frame.z),-1),mirrored:!frame.mirrored};
 }

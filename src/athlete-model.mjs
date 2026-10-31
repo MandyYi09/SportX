@@ -151,7 +151,6 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
  const yogaNeck=profileGeometry([[0,.116,.072],[.18,.099,.065],[.48,.062,.054],[.78,.053,.050],[1,.059,.053]]);
  neck.name='athlete-neck';head.name='athlete-head';
  const rowingArm=profileGeometry([[0,.047,.048],[.12,.062,.061],[.30,.062,.056],[.57,.052,.051],[.82,.040,.040],[1,.033,.035]]);
- const scullingForearm=profileGeometry([[0,.033,.035],[.18,.044,.042],[.40,.042,.036],[.68,.032,.028],[.86,.025,.020],[1,.021,.015]]);
  const rowingForearm=profileGeometry([[0,.033,.035],[.18,.044,.042],[.40,.042,.036],[.68,.032,.029],[1,.024,.023]]);
  const rowingThigh=profileGeometry([[0,.062,.066],[.18,.064,.068],[.40,.058,.061],[.76,.045,.046],[1,.039,.040]]);
  const rowingCalf=profileGeometry([[0,.039,.040],[.18,.045,.049],[.38,.050,.054],[.65,.039,.042],[1,.027,.029]]);
@@ -306,7 +305,7 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
    for(let i=0;i<p.count;i++){const y=p.getY(i),waist=Math.exp(-(((y-.35)/.22)**2));p.setX(i,p.getX(i)*(.94-.09*waist));p.setZ(i,p.getZ(i)*(.98+.04*Math.exp(-(((y-.72)/.15)**2))));}
    p.needsUpdate=true;g.computeVertexNormals();
   }
-  for(const g of new Set([regularArm,regularForearm,yogaArm,yogaForearm,rowingArm,rowingForearm,scullingForearm,regularThigh,regularCalf,rowingThigh,rowingCalf,yogaThigh,mobilitySleeve]))g.scale(.88,1,.88);
+  for(const g of new Set([regularArm,regularForearm,yogaArm,yogaForearm,rowingArm,rowingForearm,regularThigh,regularCalf,rowingThigh,rowingCalf,yogaThigh,mobilitySleeve]))g.scale(.88,1,.88);
   rowingShortMaterial.vertexColors=false;rowingShortMaterial.color.set(0x173d45);
  }
  let shooting=false,rowing=false,tennis=false,yoga=false,mobility=false,bentYoga=false,currentSport=null,currentPose=null;
@@ -340,7 +339,7 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
   for(const part of limbs){
    part.upper.visible=true;part.upper.geometry=yoga?yogaArm:rowing||tennis?rowingArm:regularArm;
    part.sleeve.visible=!rowing&&!yoga;part.shoulder.visible=rowing||tennis||yoga;part.shoulder.material=yoga?yogaSkin:tennis?tennisNavy:rowingSkin;part.shoulder.scale.set(tennis?.067:.064,tennis?.052:.056,tennis?.064:.062);part.sleeve.geometry=tennis?tennisSleeve:regularSleeve;part.sleeve.material=tennis?tennisNavy:shooting?shootingBlue:body;
-   part.lower.geometry=yoga?yogaForearm:rowing?scullingForearm:tennis?rowingForearm:regularForearm;
+   part.lower.geometry=yoga?yogaForearm:rowing||tennis?rowingForearm:regularForearm;
    part.lower.material=part.elbow.material=yoga?yogaSkin:tennis?tennisSkin:shooting?shootingSkin:rowing?rowingSkin:skin;
    part.thigh.material=part.calf.material=part.knee.material=yoga?yogaSkin:tennis?tennisSkin:rowing?rowingSkin:shooting?captureSuit:fabric;
    part.thigh.geometry=yoga?yogaThigh:rowing||tennis?rowingThigh:regularThigh;part.calf.geometry=rowing||tennis?rowingCalf:regularCalf;
@@ -424,7 +423,7 @@ export function createAthleteModel(THREE, {body, skin, gender='male'}) {
   limbs.forEach((part,i)=>{
    segment(coords[i],coords[i+2],part.upper,forward);
    const sleeveEnd=coords[i].clone().lerp(coords[i+2],tennis?.48:.44);segment(coords[i],sleeveEnd,part.sleeve,forward);
-   segment(coords[i+2],coords[i+4],part.lower,rowing&&sample?.equipmentHands?.[i]?new THREE.Vector3(...sample.equipmentHands[i].z):forward);
+   segment(coords[i+2],coords[i+4],part.lower,forward);
    const thighStart=rowing||tennis||yoga?coords[i+6].clone().lerp(coords[i+8],yoga?.51:tennis?.58:.50):coords[i+6];
    segment(thighStart,coords[i+8],part.thigh,forward);segment(coords[i+8],coords[i+10],part.calf,forward);
    part.shoulder.position.copy(coords[i]);part.shoulder.quaternion.copy(part.upper.quaternion);
