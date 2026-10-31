@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import {PosePerformanceStats,paintRecordingPerformance,recordedPerformanceAt} from '../src/pose-performance.mjs';
+const stats=new PosePerformanceStats();
+stats.mark('frames');stats.begin(1000);
+for(let i=0;i<120;i++)stats.mark('frames');
+for(let i=0;i<40;i++)stats.mark('inferences',25);
+for(let i=0;i<100;i++)stats.mark('renders');
+const result=stats.finish(5000);
+assert.deepEqual(result,{seconds:4,cameraFps:30,poseFps:10,overlayFps:25,expertFps:0,inferenceMs:25});
+for(let i=0;i<300;i++){stats.mark('frames');stats.mark('renders');stats.mark('inferences',99);}
+assert.deepEqual(stats.snapshot(10000),result,'Playback frames and elapsed replay time must not change recorded FPS');
+assert.deepEqual(stats.finish(12000),result,'Finish must be idempotent');
+stats.begin(13000);stats.mark('inferences',50);stats.mark('frames');
+assert.equal(stats.finish(14000).poseFps,1,'A new recording starts a fresh measurement');
+assert.equal(stats.snapshot(15000).inferenceMs,50);
+const labels=[],ctx={save(){},restore(){},measureText(text){return {width:text.length*8};},fillRect(){},fillText(text){labels.push(text);}};
+paintRecordingPerformance(ctx,result,960,{language:'zh'});
+assert.ok(labels[0].includes('录制期间平均'));assert.ok(labels[1].includes('30.0 FPS'));assert.ok(labels[1].includes('10.0 FPS'));assert.ok(labels[3].includes('25.0 ms'));
+const timed=new PosePerformanceStats();timed.begin(0);
+for(let i=0;i<30;i++)timed.mark('frames');for(let i=0;i<10;i++)timed.mark('inferences',20);for(let i=0;i<20;i++)timed.mark('experts');timed.sample(1000);
+for(let i=0;i<15;i++)timed.mark('frames');for(let i=0;i<5;i++)timed.mark('inferences',40);for(let i=0;i<12;i++)timed.mark('experts');
+const report=timed.report(2000),first=recordedPerformanceAt(report,.4),second=recordedPerformanceAt(report,1.4);
+assert.equal(first.cameraFps,30);assert.equal(first.poseFps,10);assert.equal(first.expertFps,20);
+assert.equal(second.cameraFps,15);assert.equal(second.poseFps,5);assert.equal(second.expertFps,12);assert.equal(second.inferenceMs,40);
+assert.equal(recordedPerformanceAt(report,1).poseFps,5);assert.equal(recordedPerformanceAt(report,2).poseFps,5);
+assert.equal(recordedPerformanceAt(report,.4).poseFps,10,'Backward seeking restores the original sample');
+labels.length=0;paintRecordingPerformance(ctx,second,960,{language:'zh'});assert.ok(labels[0].includes('1.4'));assert.ok(labels[1].includes('5.0 FPS'));
+console.log('PASS: actual recording FPS/latency, excluded preparation and playback, immutable Finish summary and re-record reset.');

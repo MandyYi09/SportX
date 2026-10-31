@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {RowingRenderBudget} from '../src/rowing-render-budget.mjs';
+const b=new RowingRenderBudget();
+assert.deepEqual(b.read(0),{maxFps:20,maxWidth:720,level:0});
+b.observeInference(250);assert.deepEqual(b.read(1),{maxFps:8,maxWidth:360,level:2});
+for(let i=0;i<25;i++)b.observeInference(50);
+assert.equal(b.read(2).level,2);assert.equal(b.read(3001).level,2);
+assert.equal(b.read(3002).level,1);assert.equal(b.read(3003).level,1);assert.equal(b.read(6003).level,0);
+b.observeRender(40);assert.equal(b.read(6004).level,2,'Expensive expert rendering yields to camera and inference');
+b.reset();b.observeFrame(0);b.observeFrame(100);assert.equal(b.read(100).level,2,'UI lag reduces expert work');
+for(let t=116;t<4000;t+=16)b.observeFrame(t);
+assert.equal(b.read(4000).level,2);assert.equal(b.read(7000).level,1);
+b.reset();b.observeInference(NaN);b.observeRender(-1);assert.equal(b.read(0).level,0);
+console.log('PASS: expert-only adaptive resolution/rate, slow-inference and UI-lag response, sustained recovery and no budget flapping.');
