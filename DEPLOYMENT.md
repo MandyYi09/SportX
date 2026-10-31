@@ -1,9 +1,3 @@
 # Deployment
 
-Canonical source: https://github.com/MandyYi09/SportX
-
-Public website: https://mandyyi09.github.io/SportX/
-
-Push the intended source changes to `main`. The Publish website workflow builds and deploys GitHub Pages. A local commit alone does not publish the site. Confirm that the workflow succeeds for that commit, then check the public URL.
-
-Build output: `build`.
+Run `npm test` and `npm run build`. Deploy the generated `build/` directory to a static HTTPS host. The included GitHub Pages workflow can build and publish from your own repository. Camera access requires HTTPS or localhost.

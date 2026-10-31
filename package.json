@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "node scripts/preview.mjs --port 5187",
     "dev:https": "node scripts/setup-local-https.mjs && node scripts/preview.mjs --https",
-    "test": "node tests/pose-comparison.mjs && node tests/motion-playback.mjs && node tests/captured-motion.mjs && node tests/rowing-display.mjs && node tests/captured-sports.mjs && node tests/motion-windows.mjs && node tests/athlete-model.mjs && node tests/mobility-model.mjs && node tests/female-model.mjs && node tests/rowing-correction.mjs && node tests/rowing-orientation.mjs && node tests/rowing-feedback.mjs && node tests/rowing-arrows.mjs && node tests/camera-switch.mjs && node tests/rowing-speech.mjs && node tests/rowing-speech-playback.mjs && node tests/voice-control.mjs && node tests/settings.mjs",
+    "test": "node tests/pose-comparison.mjs && node tests/motion-playback.mjs && node tests/captured-motion.mjs && node tests/captured-sports.mjs && node tests/motion-windows.mjs && node tests/athlete-model.mjs && node tests/mobility-model.mjs && node tests/female-model.mjs && node tests/rowing-correction.mjs && node tests/rowing-orientation.mjs && node tests/rowing-feedback.mjs && node tests/rowing-arrows.mjs && node tests/camera-switch.mjs && node tests/rowing-speech.mjs && node tests/rowing-speech-playback.mjs && node tests/voice-control.mjs && node tests/rowing-dynamic.mjs && node tests/rowing-pose-tracker.mjs && node tests/pose-performance.mjs && node tests/rowing-video-export.mjs && node tests/rowing-pose-client.mjs && node tests/rowing-takes.mjs && node tests/rowing-frame-export.mjs && node tests/rowing-motion-phase.mjs && node tests/rowing-review-layout.mjs && node tests/rowing-debug.mjs && node tests/rowing-reference-cycle.mjs && node tests/rowing-render-budget.mjs && node tests/rowing-view-feedback.mjs && node tests/rowing-display.mjs && node tests/settings.mjs",
+    "test:dynamic": "node tests/rowing-dynamic.mjs",
+    "test:dynamic:browser": "node scripts/rowing-dynamic-browser-check.mjs --full",
     "build": "node scripts/build.mjs"
   }
 }
