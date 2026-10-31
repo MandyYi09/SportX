@@ -1,0 +1,100 @@
+import {dynamicReferenceDuration as capturedDuration,dynamicReferenceAt as rowingReferenceAt} from '../src/rowing-reference-cycle.mjs';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import {loadCapturedMotions} from '../src/captured-motion.mjs';
+import {assessRowing,rowingCheckpointComplete} from '../src/rowing-correction.mjs';
+import {dynamicReference,alignDynamicFrames,analyzeDynamic,dynamicIssues,closestDynamicRow,LiveRowingMatcher} from '../src/rowing-dynamic.mjs';
+import {DynamicRowingFeedback,scoreDynamicRows,VisibleAlignmentCue,visiblePartsAligned,visibleAlignmentText} from '../src/rowing-dynamic-feedback.mjs';
+const original=globalThis.fetch;
+globalThis.fetch=async url=>{const b=await fs.readFile(new URL(url));return {ok:true,json:async()=>JSON.parse(b),arrayBuffer:async()=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)};};
+await loadCapturedMotions();globalThis.fetch=original;
+const yaw=.3,width=960,height=720;
+function frame(id,time,t){
+ const ref=rowingReferenceAt(id,time,1,yaw);
+ const pose=Array.from({length:33},(_,i)=>ref[i]?{x:.5+ref[i].x*.3,y:.78+ref[i].y*.4,visibility:.99}:{x:0,y:0,visibility:0});
+ return {t,pose,world:null,width,height};
+}
+for(const id of ['rowing-arms','rowing-half','rowing-full']){
+ const duration=capturedDuration(id),experts=dynamicReference(id,yaw),frames=[];
+ // A slower user should match by phase, not wall clock.
+ for(let t=0;t<duration*3*1.3;t+=.1)frames.push(frame(id,(2.4+t/1.3)%duration,t));
+ const rows=alignDynamicFrames(id,frames,experts,yaw);
+ assert.equal(rows.length,frames.length);
+ assert.ok(rows.every((r,i)=>!i||r.phase>=rows[i-1].phase));
+ const mean=rows.flatMap(r=>r.assessment.metrics.filter(m=>!m.guidanceOnly)).reduce((n,m)=>n+m.delta,0)/rows.flatMap(r=>r.assessment.metrics.filter(m=>!m.guidanceOnly)).length;
+ assert.ok(mean<8,`${id} mean angular error ${mean}`);
+ const analysis=analyzeDynamic(id,frames,{yaw});
+ assert.ok(analysis.cycles.length>=1,`${id} should detect complete cycles`);
+ assert.ok(analysis.end<=frames.at(-1).t);
+ const cutoff=frames[Math.floor(frames.length*.75)].t;
+ assert.ok(analyzeDynamic(id,frames,{yaw,cutoff}).rows.every(r=>r.t<=cutoff));
+ const absent=frames.slice(0,20).map(f=>({...f,pose:null}));
+ assert.deepEqual(alignDynamicFrames(id,absent,experts,yaw),[]);
+ const missing=frames.map((f,i)=>i>30&&i<45?{...f,pose:null}:f);
+ const gaps=alignDynamicFrames(id,missing,experts,yaw).filter(r=>r.t>3.1&&r.t<4.4);
+ assert.ok(gaps.every(r=>!r.valid));
+ assert.equal(new Set(gaps.map(r=>r.phase)).size,1,'Occlusion must not advance phase');
+}
+const f=frame('rowing-full',2.4,0),ref=rowingReferenceAt('rowing-full',2.4,1,yaw),assessment=assessRowing('rowing-full',f.pose,ref,width,height);
+assert.ok(rowingCheckpointComplete('rowing-full',assessment));
+const missing={...assessment,missing:[{id:15}]};assert.equal(rowingCheckpointComplete('rowing-full',missing),false);
+assert.equal(rowingCheckpointComplete('rowing-full',{...assessment,occluded:[{}]}),false);
+assert.equal(rowingCheckpointComplete('rowing-full',{...assessment,metrics:assessment.metrics.slice(0,2)}),false);
+const bad={key:'elbow-0',actual:80,target:165,delta:85,tolerance:18,close:false};
+assert.equal(dynamicIssues([{t:0,valid:true,assessment:{metrics:[bad]}},{t:.1,valid:true,assessment:{metrics:[]}}]).length,0,'Transient noise is not a sustained correction');
+const sustained=Array.from({length:10},(_,i)=>({t:i*.1,valid:true,assessment:{metrics:[bad]}}));
+assert.equal(dynamicIssues(sustained).length,1);
+const early=sustained.map(r=>({...r,assessment:{metrics:[bad,{key:'knee-0',actual:110,target:130,delta:20,tolerance:18,close:false}]}}));
+assert.ok(dynamicIssues(early).some(i=>i.kind==='sequence'),'Early arm bending must persist as a distinct sequence issue');
+assert.equal(closestDynamicRow([{t:0},{t:1},{t:2}],1.7).t,2);
+const feedback=new DynamicRowingFeedback(),assessmentOf=metrics=>({metrics,small:false});
+const correct={...bad,delta:0,actual:165,close:true};
+assert.equal(visibleAlignmentText.en,'All visible parts are well-aligned.');
+assert.equal(visibleAlignmentText.zh,'所有可见部位均已对齐。');
+assert.equal(visiblePartsAligned(assessmentOf([correct])),true);assert.equal(visiblePartsAligned(assessmentOf([correct,bad])),false);assert.equal(visiblePartsAligned(assessmentOf([])),false);
+assert.equal(visiblePartsAligned(assessmentOf([{...correct,estimated:true}])),false);
+const alignment=new VisibleAlignmentCue();assert.equal(alignment.update(assessmentOf([correct]),true,0).announce,false);
+assert.equal(alignment.update(assessmentOf([correct]),true,400).announce,true);
+assert.equal(alignment.update(assessmentOf([correct]),true,500).announce,false,'Do not repeat on every frame');
+alignment.update(assessmentOf([bad]),true,600);assert.equal(alignment.update(assessmentOf([correct]),true,700).announce,false);
+alignment.update(assessmentOf([correct]),true,10500);assert.equal(alignment.update(assessmentOf([correct]),true,10900).announce,true);
+assert.deepEqual(feedback.update(assessmentOf([correct]),true,0),{errors:[],resolved:[]},'Correct poses are quiet initially');
+feedback.update(assessmentOf([bad]),true,100);
+assert.equal(feedback.update(assessmentOf([bad]),true,200).errors.length,0);
+assert.equal(feedback.update(assessmentOf([bad]),true,400).errors.length,1);
+assert.equal(feedback.update(assessmentOf([correct]),true,500).resolved.length,1);
+for(let t=600;t<=1200;t+=100)feedback.update(assessmentOf([correct]),true,t);
+assert.equal(feedback.update(assessmentOf([correct]),true,1300).resolved.length,0,'Corrected green flashes must expire');
+assert.deepEqual(feedback.update(assessmentOf([]),false,1400),{errors:[],resolved:[]});
+const scoredRows=Array.from({length:21},(_,i)=>({t:i*.1,valid:true,assessment:assessmentOf([
+ {...correct,key:'elbow-0'},{...correct,key:'trunk-0'},
+ {...correct,key:'elbow-1',delta:36,close:false},{...correct,key:'trunk-1',delta:36,close:false},
+])}));
+const scores=scoreDynamicRows('rowing-full',scoredRows);
+assert.equal(scores.parts.find(p=>p.key==='left-arm').score,100);
+assert.equal(scores.parts.find(p=>p.key==='right-arm').score,56);
+assert.equal(scores.parts.find(p=>p.key==='left-leg').score,null,'Invisible legs must not receive a score');
+assert.equal(scores.total,78);assert.ok(Math.abs(scores.coverage-.5)<1e-6);
+assert.equal(scoreDynamicRows('rowing-full',scoredRows.map(r=>({...r,valid:false}))).total,null);
+const withGap=[...scoredRows,{t:10,valid:false,assessment:assessmentOf([])}];
+assert.ok(scoreDynamicRows('rowing-full',withGap).coverage<.2,'Unobserved time must reduce coverage');
+const liveMatcher=new LiveRowingMatcher('rowing-full',{yaw}),liveDuration=capturedDuration('rowing-full');
+const cropped=frame('rowing-full',2.4,0);for(const i of [23,24,25,26,27,28])cropped.pose[i].visibility=0;
+assert.equal(liveMatcher.update(cropped).valid,true,'Full stroke must still assess visible arms without legs');
+assert.equal(liveMatcher.update(cropped).sequenceObservable,false,'Only cross-body sequencing requires its own evidence');
+const croppedAnalysis=analyzeDynamic('rowing-full',Array.from({length:15},(_,i)=>({...cropped,t:i*.1})),{yaw});
+assert.equal(croppedAnalysis.rows.length,15);
+const partialScores=scoreDynamicRows('rowing-full',croppedAnalysis.rows);
+assert.ok(croppedAnalysis.rows.some(r=>r.assessment.metrics.some(m=>m.key==='elbow-0')),'Visible arms remain measurable without legs even when the static phase is ambiguous');
+assert.equal(partialScores.parts.find(p=>p.key==='left-leg').score,null);
+assert.equal(partialScores.total,null,'An ambiguous held pose is not a confirmed dynamic phase');
+const oneArm=cropped.pose.map(p=>({...p}));for(const i of [12,14,16])oneArm[i].visibility=0;
+assert.equal(new LiveRowingMatcher('rowing-full',{yaw}).update({...cropped,pose:oneArm}).valid,true,'A single visible arm must remain assessable');
+const inferredOnly=frame('rowing-full',2.4,0);inferredOnly.pose=inferredOnly.pose.map(p=>({...p,inferred:true,inferenceConfidence:.6,inferenceAge:100,inferenceMethod:'temporal-continuity'}));
+const inferredMatch=new LiveRowingMatcher('rowing-full',{yaw}).update(inferredOnly);assert.equal(inferredMatch.valid,true,'Supported estimates can maintain live phase continuity');assert.equal(inferredMatch.phaseObserved,false,'Estimated-only phase continuity is not observed completion evidence');
+const unsupportedOnly={...inferredOnly,pose:inferredOnly.pose.map(p=>({...p,inferenceConfidence:.1}))};assert.equal(new LiveRowingMatcher('rowing-full',{yaw}).update(unsupportedOnly).valid,false,'Weak estimates cannot direct live phase decisions');
+let previous=-Infinity;
+for(let t=0;t<liveDuration*2;t+=.1){const match=liveMatcher.update(frame('rowing-full',(2.4+t/1.2)%liveDuration,t));assert.ok(match.valid);assert.ok(match.phase>=previous);previous=match.phase;}
+assert.equal(liveMatcher.update({t:20,pose:null,width,height}).valid,false);
+console.log('PASS: live phase matching, persistent orange errors, transient green confirmation, visible-only per-part/total scores and missing-time coverage.');
+console.log('PASS: dynamic phase alignment at slower tempo, cyclic trim, speech cutoff, missing joints, strict static completion and sustained errors.');
