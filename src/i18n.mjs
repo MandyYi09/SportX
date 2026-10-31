@@ -8,6 +8,7 @@ export function setLanguage(value) {
 
 // English remains the source copy. These strings are only used when Chinese is selected.
 const zh = {
+  'Dynamic recording':'动态录制',
   'Voice · On':'语音 · 开','Voice · Off':'语音 · 关','Tap for voice':'点此启用语音','Prerecorded synthetic voice · follows selected language':'预制合成语音 · 跟随所选语言',
   'Mirror · On':'镜像 · 开','Mirror · Off':'镜像 · 关','Mirror camera, expert and joints together':'同步镜像相机、专家模型与关节点',
   'Static pose correction':'静态姿态纠错','Start correction':'开始纠错','The expert follows your horizontal direction.':'专家模型正在跟随你的水平朝向。',

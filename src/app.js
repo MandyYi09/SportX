@@ -22,12 +22,12 @@ import {fitYogaArms} from './yoga-proportions.mjs';
 import {fitMobilityArms,orientMobilityHand} from './mobility-proportions.mjs';
 import {createShootingProp,shootingGrip,shootingRearGrip,shootingEnvelope} from './shooting-model.mjs';
 import {rowingGrip} from './equipment-grip.mjs';
-import {rowingDisplaySample} from './rowing-display.mjs';
 import {getLanguage, setLanguage, registerPoseTranslations, startLocalization, refreshLocalization} from './i18n.mjs?v=49';
 const selectedPose = () => poses.find(p => p.id === current);
 let voiceControls=null;
-const rowingCorrection=createRowingCorrection({getLanguage,getGender:()=>modelGender,onDirection:yaw=>sceneApi?.setTrackingYaw(yaw),beforeOpen:()=>{motionPlayer.pause();},onPlayback:(active,text)=>voiceControls?.setSpeaking('rowing',active,text),onControls:parent=>voiceControls?.mount(parent)});
+const rowingCorrection=createRowingCorrection({getLanguage,getGender:()=>modelGender,onDirection:yaw=>sceneApi?.setTrackingYaw(yaw),beforeOpen:()=>{motionPlayer.pause();},onCameraStop:()=>stopCamera(),onCameraStart:async()=>{if(!stream?.active){stream=await navigator.mediaDevices.getUserMedia({video:cameraDeviceId?{deviceId:{exact:cameraDeviceId}}:{facingMode:{ideal:cameraFacing}},audio:false});stream.getVideoTracks()[0].onended=()=>{if(stream)stopCamera();};setCameraButton('Stop camera');}return stream;},onPlayback:(active,text)=>voiceControls?.setSpeaking('rowing',active,text),onControls:parent=>voiceControls?.mount(parent)});
 const correctionButton=document.createElement('button');correctionButton.className='primary';correctionButton.id='start-rowing-correction';correctionButton.textContent='Start correction';correctionButton.disabled=true;correctionButton.onclick=()=>rowingCorrection.open(current);$('camera').before(correctionButton);
+const dynamicButton=document.createElement('button');dynamicButton.className='primary';dynamicButton.id='start-rowing-dynamic';dynamicButton.textContent='Dynamic recording';dynamicButton.disabled=true;dynamicButton.onclick=()=>rowingCorrection.open(current,{dynamicOnly:true});correctionButton.after(dynamicButton);
 const framing = id => isUpperPose(id) ? 'Face the camera with shoulders, elbows, wrists and hips visible. Feet can stay out of frame.' : isSidePose(id) ? 'Turn side-on with your whole body visible.' : 'Face the camera with your whole body visible.';
 const presence = new PosePresence();
 const focusView = createFocusView($('stage'),()=>{presence.dismiss();focusView.setExpanded(false);});
@@ -38,7 +38,7 @@ let viewZoom = 1;
 let guideUnavailable = false;
 let mobilityMode = 'stretch';
 const activeCategory = () => filter === 'mobility' ? mobilityMode : filter;
-let current = 'reach', filter = 'all', stream = null, landmarker = null, starting = false, runId = 0, lastVideo = -1, lastDetect = 0, lastFeedback = 0, remaining = 30, timerId = null, sceneApi = null;
+let current = 'reach', filter = 'rowing', stream = null, landmarker = null, starting = false, runId = 0, lastVideo = -1, lastDetect = 0, lastFeedback = 0, remaining = 30, timerId = null, sceneApi = null;
 let modelGender='male';
 try{modelGender=(localStorage.getItem('sportx-model-gender')??localStorage.getItem('fitai-model-gender'))==='female'?'female':'male';}catch{}
 let cameraFacing='user',cameraDeviceId=null,switchingCamera=false;
@@ -60,7 +60,7 @@ function setCameraButton(label){
     else{$('camera').textContent=label;$('camera').classList.remove('camera-icon-button');delete $('camera').dataset.cameraIcon;$('camera').removeAttribute('title');$('camera').removeAttribute('aria-label');}
 }
 const cameraControls=createCameraControls([$('demo-camera'),$('camera-dialog')],deviceId=>switchCamera(deviceId));
-voiceControls=createVoiceControls({getLanguage,onCommand:executeVoiceCommand,onAnnouncement:active=>rowingCorrection.holdSpeech(active),onAvailability:active=>rowingCorrection.setVoiceAvailable(active),onInterrupt:()=>rowingCorrection.interruptSpeech()});
+voiceControls=createVoiceControls({getLanguage,onCommand:executeVoiceCommand,onAnnouncement:active=>rowingCorrection.holdSpeech(active),onInterrupt:()=>rowingCorrection.interruptSpeech(),onSpeechStart:time=>rowingCorrection.noteSpeechStart(time)});
 const voicePanel=document.createElement('div');document.querySelector('.camera-actions').after(voicePanel);voiceControls.mount(voicePanel);
 window.addEventListener('pagehide',()=>voiceControls.dispose());
 async function executeVoiceCommand(command){
@@ -78,7 +78,7 @@ async function executeVoiceCommand(command){
    const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
    if(sameDirectionDevices(devices,stream.getVideoTracks()[0].getSettings()).length<2)return tr('No other lens on this side. Try flip camera.','当前方向没有其他镜头，可以说翻转镜头。');
   }
-  rowingCorrection.close();await switchCamera(null,command==='camera-flip');return tr('Camera updated. Find your direction again.','摄像头已更新，请重新确定朝向。');
+  rowingCorrection.close({keepCamera:true});await switchCamera(null,command==='camera-flip');return tr('Camera updated. Find your direction again.','摄像头已更新，请重新确定朝向。');
  }
  if(command==='next-movement'||command==='previous-movement'){
   const ids=['rowing-arms','rowing-half','rowing-full'],offset=command==='next-movement'?1:-1;
@@ -89,17 +89,22 @@ async function executeVoiceCommand(command){
  if(selectedPose().type!=='rowing')return tr('Select a rowing movement first.','请先选择赛艇动作。');
  if(command==='mirror-on'||command==='mirror-off'){rowingCorrection.mirror(command==='mirror-on');return tr(command==='mirror-on'?'Mirror on.':'Mirror off.',command==='mirror-on'?'镜像已开启。':'镜像已关闭。');}
  if(command==='start'||command==='lock'){
+  if(command==='start'&&['ready','review'].includes(rowingCorrection.dynamicState())){rowingCorrection.startDynamic();return null;}
   if(rowingCorrection.isOpen())return tr('Direction already locked.','朝向已经锁定。');
   if(!rowingCorrection.isReady())return tr(stream?'Keep both shoulders visible until your direction is ready.':'Open the camera first.',stream?'请让双肩入镜，等待朝向就绪。':'请先打开摄像头。');
   rowingCorrection.open(current);return null;
  }
  if(command==='reposition'){
+  if(rowingCorrection.isOpen()&&rowingCorrection.dynamicState()!=='off'){await rowingCorrection.repositionDynamic();return null;}
   if(!stream)return tr('Open the camera first.','请先打开摄像头。');
-  if(rowingCorrection.isOpen())rowingCorrection.close();else void rowingCorrection.prepare(current,stream);
+  if(rowingCorrection.isOpen())rowingCorrection.close({keepCamera:true});else void rowingCorrection.prepare(current,stream);
   return tr('Finding your direction. Keep both shoulders visible.','正在重新定位，请让双肩入镜。');
  }
  if(!rowingCorrection.isOpen())return tr('Say start correction first.','请先说开始纠错。');
- if(command==='end'){rowingCorrection.close();return tr('Correction ended.','纠错已结束。');}
+ if(command==='end'){
+  if(['countdown','recording'].includes(rowingCorrection.dynamicState())){await rowingCorrection.finishDynamic({voice:true});return null;}
+  rowingCorrection.close();return tr('Correction ended.','纠错已结束。');
+ }
  if(command==='pause'){rowingCorrection.pause();return tr('Correction paused. Your direction and stage are saved.','纠错已暂停，朝向和阶段已保留。');}
  if(command==='review'){rowingCorrection.pause('review');return tr('Correction paused. Come back to view the expert, then say resume correction.','纠错已暂停。可以返回手机查看教练，准备好后说继续纠错。');}
  if(command==='resume'){rowingCorrection.resume();return tr('Return to your position. Your direction stays locked.','请回到练习位置，朝向保持锁定。');}
@@ -132,9 +137,9 @@ document.querySelectorAll('[data-wrist]').forEach(b=>b.onclick=()=>setWristMode(
 function drawCards() {
  const listScroll=$('poses').scrollLeft;
  const category=activeCategory();
- document.documentElement.dataset.theme=filter==='all'?'all':filter==='mobility'?'mobility':category;
+ document.documentElement.dataset.theme=filter==='mobility'?'mobility':category;
  sceneApi?.setTheme();
- const shown=poses.filter(p => category === 'all' || p.type === category);
+ const shown=poses.filter(p => p.type!=='clay'&&p.type===category);
  $('mobility-modes').hidden=filter!=='mobility';
  document.querySelectorAll('[data-mobility]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mobility===mobilityMode)));
  $('movement-count').textContent=`${shown.length} movements`;
@@ -150,6 +155,7 @@ function drawCards() {
 }
 function selectPose(id, keepSide=false) {
  const p=poses.find(p=>p.id===id); if(!p)throw Error('Unknown movement');
+ if(p.type==='clay')return;
  if(stream && selectedPose().demoOnly !== p.demoOnly)stopCamera();
  if(!p.wristStudy || !selectedPose().wristStudy)wristMode='aligned';
  current=id; $('demo-video').style.transform=p.type==='rowing'||cameraFacing==='environment'?'none':'scaleX(-1)';correctionButton.hidden=p.type!=='rowing'; if(!keepSide)flipped=false; stopTimer(); remaining=p.hold || 30; updateTimer();
@@ -192,7 +198,7 @@ document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => {
  filter=b.dataset.filter;
  document.querySelectorAll('[data-filter]').forEach(x=>{x.classList.toggle('selected',x===b);x.setAttribute('aria-pressed',String(x===b));});
  const category=activeCategory();
- if(category!=='all' && selectedPose().type!==category)selectPose(poses.find(p=>p.type===category).id);else drawCards();
+ if(selectedPose().type!==category)selectPose(category==='rowing'?'rowing-full':poses.find(p=>p.type===category).id);else drawCards();
 });
 document.querySelectorAll('[data-mobility]').forEach(button=>button.onclick=()=>{
  mobilityMode=button.dataset.mobility;
@@ -382,7 +388,11 @@ document.querySelectorAll('[data-language]').forEach(button => button.onclick = 
  document.querySelectorAll('[data-language]').forEach(option => option.setAttribute('aria-pressed', String(option === button)));
  refreshLocalization();
 });
-filter='rowing';document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('selected',b.dataset.filter==='rowing'));selectPose('rowing-arms');
+const entryParams=new URLSearchParams(location.search);
+const entryMovement=entryParams.get('movement');
+const entryPose=poses.find(p=>p.id===entryMovement&&p.type!=='clay')||poses.find(p=>p.id==='rowing-full');
+if(['zh','en'].includes(entryParams.get('lang')))setLanguage(entryParams.get('lang'));
+filter=['stretch','gentle'].includes(entryPose.type)?'mobility':entryPose.type;if(filter==='mobility')mobilityMode=entryPose.type;document.querySelectorAll('[data-filter]').forEach(b=>{b.classList.toggle('selected',b.dataset.filter===filter);b.setAttribute('aria-pressed',String(b.dataset.filter===filter));});selectPose(entryPose.id);
 startLocalization();
 async function initThree() {
     try {
@@ -406,7 +416,7 @@ async function initThree() {
         for(const x of [-.27,.27])for(const z of [-.18,.32]){const leg=new THREE.Mesh(new THREE.CylinderGeometry(.028,.028,.59,10),propMaterial);leg.position.set(x,.32,z);chairGroup.add(leg);}
         const sculls=[-1,1].map(side=>{
             const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,1,12),propMaterial);group.add(shaft);
-            const handle=new THREE.Mesh(new THREE.CylinderGeometry(rowingGrip.radius,rowingGrip.radius,.15,16),new THREE.MeshStandardMaterial({color:0xd7c383,roughness:.8}));group.add(handle);
+            const handle=new THREE.Mesh(new THREE.CylinderGeometry(rowingGrip.radius,rowingGrip.radius,.15,16),propMaterial);group.add(handle);
             const blade=new THREE.Mesh(new THREE.SphereGeometry(1,24,12),new THREE.MeshStandardMaterial({color:side<0?0xc2d8e1:0xe7d9b7,roughness:.6}));blade.scale.set(.23,.055,.12);group.add(blade);
             return {side,shaft,handle,blade,end:new THREE.Vector3()};
         });
@@ -435,12 +445,7 @@ async function initThree() {
         });
         function updateProps(){
             const type=selectedPose().type;chairGroup.visible=type==='gentle';hull.visible=type==='rowing';racket.visible=type==='tennis';
-            boatSeat.visible=seatRails.visible=type==='rowing';
-            boatSeat.position.copy(coords[6]).add(coords[7]).multiplyScalar(.5);boatSeat.position.y-=.09;
-            if(motionSample?.rowingSeat)boatSeat.position.fromArray(motionSample.rowingSeat);
-            // Only the carriage slides; the rails stay fixed in the boat frame.
-            seatRails.position.set(0,boatSeat.position.y-.045-.515,boatSeat.position.z);
-            hull.position.y=motionSample?.captured?.08:.52;
+            boatSeat.visible=seatRails.visible=type==='rowing';boatSeat.position.copy(coords[6]).add(coords[7]).multiplyScalar(.5);boatSeat.position.y-=motionSample?.captured?.075:.09;seatRails.position.y=boatSeat.position.y-.045-.515;hull.position.y=motionSample?.captured?.08:.52;
             oarlocks.forEach((lock,i)=>{lock.root.visible=type==='rowing';if(type==='rowing'&&motionSample?.captured){lock.root.position.fromArray(motionSample.oars[i].pivot).sub(lock.pivot);}else lock.root.position.set(0,0,0);});
             shotgun.visible=type==='clay';
             for(const hand of hands){
@@ -507,7 +512,7 @@ async function initThree() {
                     item.shaft.position.copy(start).add(item.end).multiplyScalar(.5);
                     item.shaft.scale.y=rowingGrip.oarLength;
                     item.shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(...attachment.axis));
-                    item.handle.position.fromArray(attachment.hand.center).addScaledVector(new THREE.Vector3(...attachment.axis),rowingGrip.handleLength/2-rowingGrip.buttOffset);
+                    item.handle.position.fromArray(attachment.hand.center);
                     item.handle.quaternion.copy(item.shaft.quaternion);
                     item.blade.position.copy(item.end);
                     continue;
@@ -606,9 +611,13 @@ async function initThree() {
             const pts=values.map(v=>v?new THREE.Vector3(...v):null);liveJoints.forEach((m,i)=>{m.visible=!!pts[i];if(pts[i])m.position.copy(pts[i]);});
             links.forEach(([a,b],i)=>{const m=liveBones[i];m.visible=!!pts[a]&&!!pts[b];if(!m.visible)return;const d=pts[b].clone().sub(pts[a]);m.position.copy(pts[a]).add(pts[b]).multiplyScalar(.5);m.scale.y=d.length();m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());m.material.color.set(adjust.includes(landmarkIds[a])||adjust.includes(landmarkIds[b])?0x854316:0x243950);});
         } }; setModelTheme(); new ResizeObserver(() => { const { width, height } = host.getBoundingClientRect();hostSize={width,height}; if (!width || !height) return; renderer.setSize(width, height); camera.aspect = width / height; camera.position.z = Math.max(6.8, 4.6 / camera.aspect); camera.updateProjectionMatrix(); }).observe(host);
-        let previousRender=performance.now();
-        renderer.setAnimationLoop(() => {const now=performance.now(),delta=Math.min(.1,(now-previousRender)/1000);previousRender=now;if (document.hidden || host.hidden || $('rowing-correction')?.open) return;
-            motionSample=rowingDisplaySample(motionPlayer.sample(),current,flipped);
+        let previousRender=performance.now(),lastCameraPreviewRender=-Infinity;
+        renderer.setAnimationLoop(() => {const now=performance.now();if (document.hidden || host.hidden || $('rowing-correction')?.open){previousRender=now;return;}
+            // During camera calibration the background demonstration must leave
+            // CPU/GPU time for live inference; it has no correction work to do.
+            if(stream&&selectedPose().type==='rowing'&&now-lastCameraPreviewRender<50)return;
+            lastCameraPreviewRender=now;const delta=Math.min(.1,(now-previousRender)/1000);previousRender=now;
+            motionSample=motionPlayer.sample();
             if(motionSample)neutralCoords.forEach((v,i)=>v.fromArray(motionSample.coords[i]));
             else neutralCoords.forEach((v,i)=>v.lerp(new THREE.Vector3(...target[i]),1-Math.exp(-10*delta)));
             coords.forEach((v,i)=>v.copy(neutralCoords[i]));
@@ -667,4 +676,4 @@ async function initThree() {
     } catch (e) { guideUnavailable = true; $('stage-note').hidden = false; $('stage-note').innerHTML = '3D guide could not load.<small>You can still follow the written cues or enable your camera.</small>'; $('rotate').disabled = true; }
 }
 initThree();
-const lifecycle = new AbortController(); if (document.modelContext?.registerTool) { try { Promise.resolve(document.modelContext.registerTool({ name: 'select_stretch', description: 'Select a movement reference without activating the camera.', inputSchema: { type: 'object', properties: { id: { type: 'string', enum: poses.map(p => p.id) } }, required: ['id'], additionalProperties: false }, annotations: { readOnlyHint: false }, execute(input) { if (!input || typeof input.id !== 'string' || !poses.some(p => p.id === input.id)) throw Error('Unknown movement'); selectPose(input.id); return { selected: current, cameraActive: !!stream } } }, { signal: lifecycle.signal })).catch(() => { }); } catch { } } window.addEventListener('pagehide', () => lifecycle.abort());
+const lifecycle = new AbortController(); if (document.modelContext?.registerTool) { try { Promise.resolve(document.modelContext.registerTool({ name: 'select_stretch', description: 'Select a movement reference without activating the camera.', inputSchema: { type: 'object', properties: { id: { type: 'string', enum: poses.filter(p=>p.type!=='clay').map(p => p.id) } }, required: ['id'], additionalProperties: false }, annotations: { readOnlyHint: false }, execute(input) { if (!input || typeof input.id !== 'string' || !poses.some(p => p.id === input.id&&p.type!=='clay')) throw Error('Unknown movement'); selectPose(input.id); return { selected: current, cameraActive: !!stream } } }, { signal: lifecycle.signal })).catch(() => { }); } catch { } } window.addEventListener('pagehide', () => lifecycle.abort());
