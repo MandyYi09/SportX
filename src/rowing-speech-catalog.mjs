@@ -39,7 +39,7 @@ for(const [side,zh]of [['left','左'],['right','右']]){
  confirmations.push(line(`confirmed-${side}-leg`,'confirmation',`${side==='left'?'Left':'Right'} leg corrected.`,`${zh}腿已调整。`,50));
  confirmations.push(line(`confirmed-${side}-arm-height`,'confirmation',`${side==='left'?'Left':'Right'} arm height corrected.`,`${zh}臂高度已调整。`,50));
 }
-confirmations.push(line('aligned','confirmation','Aligned. Hold this position.','已对齐，保持这个姿势。',50),line('aligned-visible','confirmation','Your visible joints are aligned.','可见部位已对齐。',50),line('hold','confirmation','Hold for a moment.','保持片刻。',25));
+confirmations.push(line('aligned','confirmation','All visible parts are well-aligned.','所有可见部位均已对齐。',50),line('aligned-visible','confirmation','All visible parts are well-aligned.','所有可见部位均已对齐。',50),line('hold','confirmation','Hold for a moment.','保持片刻。',25));
 const tracking=[];
 for(const [side,zh]of [['left','左'],['right','右']]){
  tracking.push(line(`framing-${side}-wrist`,'tracking',`Your ${side} wrist is out of frame. Bring it back into view.`,`${zh}腕超出画面，请让手腕回到画面内。`,15));

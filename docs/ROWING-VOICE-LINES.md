@@ -28,8 +28,8 @@ Playback is integrated into rowing preparation and static correction. It follows
 | 18 | adjust-left-elbow-bend | adjustment | 左肘再弯曲一点。 | Bend your left elbow a little. |
 | 19 | adjust-left-knee-straighten | adjustment | 左膝再伸直一点。 | Straighten your left knee a little. |
 | 20 | adjust-left-knee-bend | adjustment | 左膝再弯曲一点。 | Bend your left knee a little. |
-| 21 | adjust-left-arm-torso-open | adjustment | 左上臂与躯干的夹角再打开一点。 | Open the angle between your left upper arm and torso. |
-| 22 | adjust-left-arm-torso-close | adjustment | 左上臂与躯干的夹角再收小一点。 | Narrow the angle between your left upper arm and torso. |
+| 21 | adjust-left-arm-torso-open | adjustment | 左上臂对照专家调整。 | Adjust your left upper arm to match the reference. |
+| 22 | adjust-left-arm-torso-close | adjustment | 左上臂对照专家调整。 | Adjust your left upper arm to match the reference. |
 | 23 | adjust-left-hip-open | adjustment | 上身与左大腿的夹角再打开一点。 | Open the angle between your torso and left thigh. |
 | 24 | adjust-left-hip-close | adjustment | 上身与左大腿的夹角再收小一点。 | Narrow the angle between your torso and left thigh. |
 | 25 | adjust-right-elbow-lower | adjustment | 右肘放低一点。 | Lower your right elbow. |
@@ -38,8 +38,8 @@ Playback is integrated into rowing preparation and static correction. It follows
 | 28 | adjust-right-elbow-bend | adjustment | 右肘再弯曲一点。 | Bend your right elbow a little. |
 | 29 | adjust-right-knee-straighten | adjustment | 右膝再伸直一点。 | Straighten your right knee a little. |
 | 30 | adjust-right-knee-bend | adjustment | 右膝再弯曲一点。 | Bend your right knee a little. |
-| 31 | adjust-right-arm-torso-open | adjustment | 右上臂与躯干的夹角再打开一点。 | Open the angle between your right upper arm and torso. |
-| 32 | adjust-right-arm-torso-close | adjustment | 右上臂与躯干的夹角再收小一点。 | Narrow the angle between your right upper arm and torso. |
+| 31 | adjust-right-arm-torso-open | adjustment | 右上臂对照专家调整。 | Adjust your right upper arm to match the reference. |
+| 32 | adjust-right-arm-torso-close | adjustment | 右上臂对照专家调整。 | Adjust your right upper arm to match the reference. |
 | 33 | adjust-right-hip-open | adjustment | 上身与右大腿的夹角再打开一点。 | Open the angle between your torso and right thigh. |
 | 34 | adjust-right-hip-close | adjustment | 上身与右大腿的夹角再收小一点。 | Narrow the angle between your torso and right thigh. |
 | 35 | confirmed-left-arm | confirmation | 左臂已调整。 | Left arm corrected. |
@@ -48,8 +48,8 @@ Playback is integrated into rowing preparation and static correction. It follows
 | 38 | confirmed-right-arm | confirmation | 右臂已调整。 | Right arm corrected. |
 | 39 | confirmed-right-leg | confirmation | 右腿已调整。 | Right leg corrected. |
 | 40 | confirmed-right-arm-height | confirmation | 右臂高度已调整。 | Right arm height corrected. |
-| 41 | aligned | confirmation | 已对齐，保持这个姿势。 | Aligned. Hold this position. |
-| 42 | aligned-visible | confirmation | 可见部位已对齐。 | Your visible joints are aligned. |
+| 41 | aligned | confirmation | 所有可见部位均已对齐。 | All visible parts are well-aligned. |
+| 42 | aligned-visible | confirmation | 所有可见部位均已对齐。 | All visible parts are well-aligned. |
 | 43 | hold | confirmation | 保持片刻。 | Hold for a moment. |
 | 44 | framing-left-wrist | tracking | 左腕超出画面，请让手腕回到画面内。 | Your left wrist is out of frame. Bring it back into view. |
 | 45 | tracking-left-shoulder | tracking | 暂时看不清左肩。 | Your left shoulder is not clearly visible. |

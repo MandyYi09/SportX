@@ -2,6 +2,7 @@ import {rowingSpeechById} from './rowing-speech-catalog.mjs';
 
 export function adjustmentSpeechId(metric){
  const side=metric.key.endsWith('-1')?'right':'left',open=metric.actual<metric.target;
+ if(metric.key.startsWith('trunk')&&metric.movementDirection)return `adjust-${side}-elbow-${metric.movementDirection==='down'?'lower':'raise'}`;
  const action=metric.key.startsWith('height')?`elbow-${metric.direction==='down'?'lower':'raise'}`:metric.key.startsWith('elbow')?`elbow-${open?'straighten':'bend'}`:metric.key.startsWith('knee')?`knee-${open?'straighten':'bend'}`:metric.key.startsWith('trunk')?`arm-torso-${open?'open':'close'}`:`hip-${open?'open':'close'}`;
  return `adjust-${side}-${action}`;
 }

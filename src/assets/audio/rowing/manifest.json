@@ -257,24 +257,24 @@
       "category": "adjustment",
       "language": "en",
       "locale": "en-US",
-      "text": "Open the angle between your left upper arm and torso.",
+      "text": "Adjust your left upper arm to match the reference.",
       "src": "en/adjust-left-arm-torso-open.mp3",
       "voice": "Microsoft Zira",
-      "durationSeconds": 3.895458,
-      "bytes": 31916,
-      "sha256": "33ef151159b83d14acca77465f594d347722559ba4e61b726bbff8a5322ec745"
+      "durationSeconds": 3.721958,
+      "bytes": 30572,
+      "sha256": "1c8911d485a18ddeeda959dd226b6635f344c766b478ed89dc67b31ea66605b0"
     },
     {
       "id": "adjust-left-arm-torso-close",
       "category": "adjustment",
       "language": "en",
       "locale": "en-US",
-      "text": "Narrow the angle between your left upper arm and torso.",
+      "text": "Adjust your left upper arm to match the reference.",
       "src": "en/adjust-left-arm-torso-close.mp3",
       "voice": "Microsoft Zira",
-      "durationSeconds": 3.974958,
-      "bytes": 32492,
-      "sha256": "9664c732bce7b8d4de82228c5ee226e566d7118341cfa9114452d63e4c923fb4"
+      "durationSeconds": 3.722583,
+      "bytes": 30572,
+      "sha256": "3f487ac7f1caf0f09f545328aaa491db55cc1e94baeddeb746eb0e3a44f2321e"
     },
     {
       "id": "adjust-left-hip-open",
@@ -377,24 +377,24 @@
       "category": "adjustment",
       "language": "en",
       "locale": "en-US",
-      "text": "Open the angle between your right upper arm and torso.",
+      "text": "Adjust your right upper arm to match the reference.",
       "src": "en/adjust-right-arm-torso-open.mp3",
       "voice": "Microsoft Zira",
-      "durationSeconds": 3.843125,
-      "bytes": 31532,
-      "sha256": "3cc3e91cf9612e7e330996ef4aed512c6e69d9a427fdedee3993ba621fdeac5e"
+      "durationSeconds": 3.671958,
+      "bytes": 29996,
+      "sha256": "4189a4e5660c7b054b2d480e4632401da1e6a5dce12f19f913503de8e2c80021"
     },
     {
       "id": "adjust-right-arm-torso-close",
       "category": "adjustment",
       "language": "en",
       "locale": "en-US",
-      "text": "Narrow the angle between your right upper arm and torso.",
+      "text": "Adjust your right upper arm to match the reference.",
       "src": "en/adjust-right-arm-torso-close.mp3",
       "voice": "Microsoft Zira",
-      "durationSeconds": 3.929958,
-      "bytes": 32108,
-      "sha256": "2db6e6571c7ae08d8918a2d0f72de36d80e0f8899b97e26195290d31c073ace3"
+      "durationSeconds": 3.671958,
+      "bytes": 29996,
+      "sha256": "4189a4e5660c7b054b2d480e4632401da1e6a5dce12f19f913503de8e2c80021"
     },
     {
       "id": "adjust-right-hip-open",
@@ -497,24 +497,24 @@
       "category": "confirmation",
       "language": "en",
       "locale": "en-US",
-      "text": "Aligned. Hold this position.",
+      "text": "All visible parts are well-aligned.",
       "src": "en/aligned.mp3",
       "voice": "Microsoft Zira",
-      "durationSeconds": 3.215958,
-      "bytes": 26348,
-      "sha256": "979c77d557d2d949f9487ee0c34bd444e1195b784b6db5d71b39cfe8f68588b7"
+      "durationSeconds": 2.781333,
+      "bytes": 22892,
+      "sha256": "f1b3fd78d03c7b8db15bcca13b67d0e033aff243be64d466d8533c13c1cb4f30"
     },
     {
       "id": "aligned-visible",
       "category": "confirmation",
       "language": "en",
       "locale": "en-US",
-      "text": "Your visible joints are aligned.",
+      "text": "All visible parts are well-aligned.",
       "src": "en/aligned-visible.mp3",
       "voice": "Microsoft Zira",
-      "durationSeconds": 2.652958,
-      "bytes": 21932,
-      "sha256": "00e9d6e1fb12b9a4f86c92c6d671bf08641b07740865bb7374b34274b934b341"
+      "durationSeconds": 2.783,
+      "bytes": 22892,
+      "sha256": "f231f76205a71c8227e6f5849a288346b7a40dbbde64f2f60b3dc7facf031c2f"
     },
     {
       "id": "hold",
@@ -941,24 +941,24 @@
       "category": "adjustment",
       "language": "zh",
       "locale": "zh-CN",
-      "text": "左上臂与躯干的夹角再打开一点。",
+      "text": "左上臂对照专家调整。",
       "src": "zh/adjust-left-arm-torso-open.mp3",
       "voice": "Microsoft Huihui",
-      "durationSeconds": 4.027125,
-      "bytes": 32876,
-      "sha256": "17b0bb1a7d96ab3aed61e6ea85a18fdc23e77f36f23a05ad5fe71b8a8e621259"
+      "durationSeconds": 3.043208,
+      "bytes": 25004,
+      "sha256": "b581b7b677a9a23478ca4d7f6fcb3b7d462ec1fab25805f569e16bab68e765cb"
     },
     {
       "id": "adjust-left-arm-torso-close",
       "category": "adjustment",
       "language": "zh",
       "locale": "zh-CN",
-      "text": "左上臂与躯干的夹角再收小一点。",
+      "text": "左上臂对照专家调整。",
       "src": "zh/adjust-left-arm-torso-close.mp3",
       "voice": "Microsoft Huihui",
-      "durationSeconds": 4.155,
-      "bytes": 34028,
-      "sha256": "ecd06f41fafbacbbcc89e80378c8460ad33b3771e874fd43690068b2781b7063"
+      "durationSeconds": 3.043208,
+      "bytes": 25004,
+      "sha256": "b581b7b677a9a23478ca4d7f6fcb3b7d462ec1fab25805f569e16bab68e765cb"
     },
     {
       "id": "adjust-left-hip-open",
@@ -1061,24 +1061,24 @@
       "category": "adjustment",
       "language": "zh",
       "locale": "zh-CN",
-      "text": "右上臂与躯干的夹角再打开一点。",
+      "text": "右上臂对照专家调整。",
       "src": "zh/adjust-right-arm-torso-open.mp3",
       "voice": "Microsoft Huihui",
-      "durationSeconds": 4.002625,
-      "bytes": 32684,
-      "sha256": "8b1e3c88a977ff9f0737b14d52fb47e8947a251fd7dc687bfce6d6ba3dca4acb"
+      "durationSeconds": 3.022083,
+      "bytes": 24812,
+      "sha256": "15af220d720bec62a12a0e63a138e423367ffd79f36002408a398260de0b7ca2"
     },
     {
       "id": "adjust-right-arm-torso-close",
       "category": "adjustment",
       "language": "zh",
       "locale": "zh-CN",
-      "text": "右上臂与躯干的夹角再收小一点。",
+      "text": "右上臂对照专家调整。",
       "src": "zh/adjust-right-arm-torso-close.mp3",
       "voice": "Microsoft Huihui",
-      "durationSeconds": 4.133875,
-      "bytes": 33836,
-      "sha256": "c620bd97c68ea45d110a27190a8efe649a6ab61853deea9ea21b588accd8fa31"
+      "durationSeconds": 3.022083,
+      "bytes": 24812,
+      "sha256": "15af220d720bec62a12a0e63a138e423367ffd79f36002408a398260de0b7ca2"
     },
     {
       "id": "adjust-right-hip-open",
@@ -1181,24 +1181,24 @@
       "category": "confirmation",
       "language": "zh",
       "locale": "zh-CN",
-      "text": "已对齐，保持这个姿势。",
+      "text": "所有可见部位均已对齐。",
       "src": "zh/aligned.mp3",
       "voice": "Microsoft Huihui",
-      "durationSeconds": 3.4595,
-      "bytes": 28460,
-      "sha256": "e49a0760cc8a185a9a86e2c3e378960645b37fa127c8c6978a405b7809af82cd"
+      "durationSeconds": 3.317208,
+      "bytes": 27308,
+      "sha256": "30c047cfd6e5c08ca2c4ee6b4b70e1b7f14b2f3658fcf35f94097b601806bb0f"
     },
     {
       "id": "aligned-visible",
       "category": "confirmation",
       "language": "zh",
       "locale": "zh-CN",
-      "text": "可见部位已对齐。",
+      "text": "所有可见部位均已对齐。",
       "src": "zh/aligned-visible.mp3",
       "voice": "Microsoft Huihui",
-      "durationSeconds": 2.660625,
-      "bytes": 21932,
-      "sha256": "2f32012bd7759575a0b5a85c83945242d0a5c9b5e5a62fe7756095e9e69e145e"
+      "durationSeconds": 3.317208,
+      "bytes": 27308,
+      "sha256": "30c047cfd6e5c08ca2c4ee6b4b70e1b7f14b2f3658fcf35f94097b601806bb0f"
     },
     {
       "id": "hold",

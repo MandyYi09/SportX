@@ -5,14 +5,17 @@ import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {rowingSpeechCatalog} from '../src/rowing-speech-catalog.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
-const cache=path.join(root,'.local','rowing-speech'),wav=path.join(cache,'wav'),assets=path.join(root,'src','assets','audio','rowing');
+const onlyAt=process.argv.indexOf('--only'),only=onlyAt<0?null:new Set(process.argv[onlyAt+1].split(','));
+const cues=only?rowingSpeechCatalog.filter(c=>only.has(c.id)):rowingSpeechCatalog;
+if(only&&cues.length!==only.size)throw Error('Unknown speech cue');
+const cache=path.join(root,'.local',only?'rowing-speech-selected':'rowing-speech'),wav=path.join(cache,'wav'),assets=path.join(root,'src','assets','audio','rowing');
 const run=(command,args,{capture=false}={})=>new Promise((resolve,reject)=>{
  const child=spawn(command,args,{cwd:root,windowsHide:true,stdio:capture?['ignore','pipe','pipe']:'inherit'});let out='',err='';
  if(capture){child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>err+=b);}
  child.on('error',reject);child.on('exit',code=>code===0?resolve(out):reject(Error(`${command} exited ${code}: ${err}`)));
 });
 await fs.mkdir(cache,{recursive:true});await fs.mkdir(assets,{recursive:true});
-const input=path.join(cache,'catalog.json');await fs.writeFile(input,JSON.stringify(rowingSpeechCatalog,null,2));
+const input=path.join(cache,'catalog.json');await fs.writeFile(input,JSON.stringify(cues,null,2));
 if(!process.argv.includes('--reuse-wav')){
  if(process.platform!=='win32')throw Error('Offline synthesis requires Windows with the named en-US and zh-CN voices.');
  const powershell=path.join(process.env.WINDIR||'C:/Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
@@ -22,7 +25,7 @@ const voiceData=JSON.parse((await fs.readFile(path.join(wav,'voices.json'),'utf8
 const records=[];
 for(const language of ['en','zh']){
  await fs.mkdir(path.join(assets,language),{recursive:true});
- for(const cue of rowingSpeechCatalog){
+ for(const cue of cues){
   const output=path.join(assets,language,cue.id+'.mp3'),input=path.join(wav,language,cue.id+'.wav');
   await run('ffmpeg',['-hide_banner','-loglevel','error','-y','-i',input,'-vn','-af','loudnorm=I=-18:TP=-2:LRA=7','-ar','24000','-ac','1','-c:a','libmp3lame','-b:a','64k',output]);
   const probe=JSON.parse(await run('ffprobe',['-v','error','-show_entries','format=duration:stream=codec_name,sample_rate,channels','-of','json',output],{capture:true}));
@@ -30,8 +33,9 @@ for(const language of ['en','zh']){
   const bytes=await fs.readFile(output),voice=voiceData.find(v=>v.id===cue.id&&v.language===language);
   records.push({id:cue.id,category:cue.category,language,locale:voice.locale,text:cue.text[language],src:`${language}/${cue.id}.mp3`,voice:voice.voice,durationSeconds:Number(probe.format.duration),bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')});
  }
- console.log(`Encoded ${language}: ${rowingSpeechCatalog.length} MP3 clips.`);
+ console.log(`Encoded ${language}: ${cues.length} MP3 clips.`);
 }
+if(only){const previous=JSON.parse(await fs.readFile(path.join(assets,'manifest.json'),'utf8')),updates=new Map(records.map(c=>[`${c.language}:${c.id}`,c]));records.splice(0,records.length,...previous.clips.map(c=>updates.get(`${c.language}:${c.id}`)??c));}
 const manifest={schemaVersion:1,engine:'Windows.Media.SpeechSynthesis',speakingRate:.95,audio:{codec:'mp3',sampleRate:24000,channels:1,bitrateKbps:64,loudnessTargetLufs:-18},semanticCueCount:rowingSpeechCatalog.length,clipCount:records.length,clips:records};
 await fs.writeFile(path.join(assets,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
 const docs=path.join(root,'docs');await fs.mkdir(docs,{recursive:true});

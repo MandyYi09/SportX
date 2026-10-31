@@ -1,10 +1,10 @@
 import {createVoiceControl,voiceCommands} from './voice-control.mjs';
 
-export function createVoiceControls({getLanguage,onCommand,onAnnouncement=()=>{},onAvailability=()=>{},onInterrupt=()=>{}}){
+export function createVoiceControls({getLanguage,onCommand,onAnnouncement=()=>{},onAvailability=()=>{},onInterrupt=()=>{},onSpeechStart=()=>{}}){
  const mounts=new Set(),tr=(en,zh)=>getLanguage()==='zh'?zh:en;
  let utterance=null,finishAnnouncement=null,disposed=false,announcementVersion=0,recognitionLanguage=getLanguage();
  try{const saved=(localStorage.getItem('sportx-speech-language')??localStorage.getItem('fitai-speech-language'));if(saved==='en'||saved==='zh')recognitionLanguage=saved;}catch{}
- const controller=createVoiceControl({getLanguage:()=>recognitionLanguage,onInterrupt:()=>{
+ const controller=createVoiceControl({getLanguage:()=>recognitionLanguage,onSpeechStart,onInterrupt:()=>{
   announcementVersion++;finishAnnouncement?.();onAnnouncement(false);onInterrupt();
  },onCommand:async command=>{
   const version=++announcementVersion;onAnnouncement(true);

@@ -1,7 +1,7 @@
 // Explicit commands only: recognition never evaluates code or calls a remote API.
 export const voiceCommands = [
- ['start',['开始纠错','开始矫正','start correction','start correcting','start the correction']],
- ['end',['结束纠错','退出纠错','end correction','stop correction']],
+ ['start',['开始','开始录制','开始动态练习','start','start recording','开始纠错','开始矫正','start correction','start correcting','start the correction']],
+ ['end',['结束','结束录制','停止录制','finish','stop recording','结束纠错','退出纠错','end correction','stop correction']],
  ['pause',['暂停纠错','暂停练习','pause correction','pause practice','pause']],
  ['resume',['继续纠错','继续练习','resume correction','continue correction','resume','continue']],
  ['review',['查看示范','查看教练','看示范','show demonstration','show coach']],
@@ -64,7 +64,7 @@ export function parseVoiceCommand(text,{exactOnly=false}={}){
  return best.id;
 }
 
-export function createVoiceControl({Recognition=globalThis.SpeechRecognition||globalThis.webkitSpeechRecognition,getLanguage,onCommand,onInterrupt=()=>{},onState=()=>{},now=()=>performance.now(),schedule=setTimeout,cancel=clearTimeout}){
+export function createVoiceControl({Recognition=globalThis.SpeechRecognition||globalThis.webkitSpeechRecognition,getLanguage,onCommand,onInterrupt=()=>{},onSpeechStart=()=>{},onState=()=>{},now=()=>performance.now(),schedule=setTimeout,cancel=clearTimeout}){
  let enabled=false,visible=true,disposed=false,recognition=null,timer=null,busy=false,failures=0,status=Recognition?'off':'unsupported',lastText='',lastCommand=null,lastCommandAt=-Infinity,interpretation=null;
  const speakers=new Map(),recentSpeech=[];
  const state=()=>({supported:!!Recognition,enabled,status,lastText,interpretation});
@@ -95,7 +95,7 @@ export function createVoiceControl({Recognition=globalThis.SpeechRecognition||gl
   instance.lang=getLanguage()==='zh'?'zh-CN':'en-US';instance.continuous=true;instance.interimResults=true;instance.maxAlternatives=3;
   status='starting';emit();
   instance.onstart=()=>{if(recognition===instance){status=listeningStatus();emit();}};
-  instance.onspeechstart=()=>{if(recognition===instance)lastCommand=null;};
+  instance.onspeechstart=()=>{if(recognition===instance){lastCommand=null;onSpeechStart(now());}};
   instance.onerror=event=>{
    if(recognition!==instance)return;
    if(event.error==='no-speech'||event.error==='aborted')return;
