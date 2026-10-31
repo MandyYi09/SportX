@@ -1,5 +1,6 @@
 import {createRowingCorrection} from './rowing-correction-ui.mjs';
 import {createVoiceControls} from './voice-controls-ui.mjs';
+import {readSetting} from './settings.mjs';
 import {loadCapturedMotions} from './captured-motion.mjs';
 try { await loadCapturedMotions(); } catch(error) { document.getElementById('stage-note').hidden=false; document.getElementById('stage-note').textContent='Movement demonstration could not load. Please reload.'; throw error; }
 import {prepareLandmarks,isSidePose,isUpperPose,requiredLandmarks} from './tracking-view.mjs';
@@ -40,7 +41,7 @@ let mobilityMode = 'stretch';
 const activeCategory = () => filter === 'mobility' ? mobilityMode : filter;
 let current = 'reach', filter = 'rowing', stream = null, landmarker = null, starting = false, runId = 0, lastVideo = -1, lastDetect = 0, lastFeedback = 0, remaining = 30, timerId = null, sceneApi = null;
 let modelGender='male';
-try{modelGender=(localStorage.getItem('sportx-model-gender')??localStorage.getItem('fitai-model-gender'))==='female'?'female':'male';}catch{}
+modelGender=readSetting('model-gender')==='female'?'female':'male';
 let cameraFacing='user',cameraDeviceId=null,switchingCamera=false;
 const cameraSwitchButtons=()=>[$('demo-camera-switch'),$('camera-switch')];
 const cameraFlipButtons=[];
