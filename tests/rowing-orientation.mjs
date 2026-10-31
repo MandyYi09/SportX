@@ -13,6 +13,7 @@ for(const[id,keys]of Object.entries(rowingCheckpoints))for(let n=0;n<keys.length
  const estimate=estimateRowingYaw(p,world,lateral);assert.ok(estimate,`${id}, ${degrees}: estimate missing`);assert.ok(yawDistance(estimate.yaw,yaw)<1e-6,`${id}, ${degrees}: angle mismatch`);
  const assessment=assessRowing(id,p,ref,1000,1000,{world,source,yaw});
  if(degrees===90&&id==='rowing-arms'&&n===0)assert.equal(assessment.small,false,'End-on projection is not a small body');
+ if(degrees===90&&id==='rowing-arms'&&n===0)assert.ok(assessment.metrics.some(m=>m.space==='world'),'A foreshortened arm should retain a measurable 3D angle');
  assert.ok(assessment.metrics.every(m=>m.delta<1e-5),'Comparison must use rotated targets');
  const ghost=fitRowingReference(ref,assessment.actual,1000,1000,assessment.side);assert.ok(Object.values(ghost).every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)));
  // Missing hips must not prevent shoulder-only direction estimation.
@@ -32,4 +33,19 @@ assert.equal(tracker.read().ready,true,'Circular smoothing must handle +/-180 de
 tracker.update(null,800);assert.equal(tracker.read().ready,false);assert.equal(tracker.lock(),false);
 for(let t=900;t<=1600;t+=100)tracker.update({yaw:t%200===0?0:1},t);assert.equal(tracker.read().ready,false,'Unstable estimates must not enable Start');
 assert.equal(estimateRowingYaw(null,null,[0,1]),null);
+for(const interval of [100,250,400,700,1000,1033,1500]){
+ const slow=new RowingOrientation();for(let t=0;t<=interval*5;t+=interval)slow.update({yaw:.4},t);
+ assert.equal(slow.read().ready,true,`Direction must become ready at ${1000/interval} FPS`);
+ assert.equal(slow.lock(),true);
+}
+const dropouts=new RowingOrientation();
+dropouts.update({yaw:.3},0);dropouts.update(null,100);dropouts.update({yaw:.31},300);dropouts.update(null,450);dropouts.update({yaw:.3},600);
+assert.equal(dropouts.read().ready,true,'Brief depth dropouts must not erase every calibration sample');
+dropouts.update(null,3000);assert.equal(dropouts.read().ready,false);
+dropouts.update({yaw:.3},3100);assert.equal(dropouts.read().ready,false,'Stale evidence cannot instantly unlock correction');
+const sample=sampleCapturedMotion('rowing-full',2.4),source=sample.coords,ref=rowingReference('rowing-full',0);
+const seated=Array.from({length:33},(_,i)=>ref[i]?{x:.5+ref[i].x*.3,y:.8+ref[i].y*.3,visibility:.99}:{x:0,y:0,visibility:0});
+const seatedWorld=Array.from({length:33},()=>({x:0,y:0,z:0}));rowingIds.forEach((i,j)=>{const c=source[j];seatedWorld[i]={x:c[0],y:-c[1],z:-c[2]};});
+[seatedWorld[23],seatedWorld[24]]=[seatedWorld[24],seatedWorld[23]];
+assert.ok(estimateRowingYaw(seated,seatedWorld,sourceLateral(source)),'Unreliable seated hips must not block clear shoulders');
 console.log('PASS: continuous 360-degree yaw, 17/37/63-degree views, all checkpoints, rotated comparison, partial calibration, stability, lock, drift, missing data and circular smoothing.');

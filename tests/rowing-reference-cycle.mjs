@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import {loadCapturedMotions,capturedDuration,sampleCapturedMotion} from '../src/captured-motion.mjs';
+import {dynamicReferenceDuration,dynamicMotionSample,countdownExpertOpacity} from '../src/rowing-reference-cycle.mjs';
+import {dynamicReference,assessDynamicFrame} from '../src/rowing-dynamic.mjs';
+import {jointAngle3D} from '../src/rowing-correction.mjs';
+import {scoreDynamicRows} from '../src/rowing-dynamic-feedback.mjs';
+const saved=globalThis.fetch;globalThis.fetch=async u=>{const b=await fs.readFile(new URL(u));return {ok:true,json:async()=>JSON.parse(b),arrayBuffer:async()=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)};};await loadCapturedMotions();globalThis.fetch=saved;
+assert.equal(dynamicReferenceDuration('rowing-full'),6.6);assert.ok(capturedDuration('rowing-full')>7.5,'Static capture stays intact');
+for(const time of [0,1.6,2.4,4.4,5.5])assert.deepEqual(dynamicMotionSample('rowing-full',time).coords,sampleCapturedMotion('rowing-full',time).coords);
+const a=dynamicMotionSample('rowing-full',6.6-1e-6),b=dynamicMotionSample('rowing-full',0);assert.ok(Math.max(...a.coords.map((p,i)=>Math.hypot(...p.map((v,k)=>v-b.coords[i][k]))))<1e-5,'The expert cycle must have no position jump');
+const angle=s=>jointAngle3D(...[0,2,4].map(i=>({x:s.coords[i][0],y:s.coords[i][1],z:s.coords[i][2]})));
+assert.ok(Math.abs(angle(dynamicMotionSample('rowing-full',6.5))-angle(b))<10,'No old 66-degree elbow jump');
+assert.ok(Math.abs(Math.hypot(...a.headRotation)-1)<1e-8);const expert=dynamicReference('rowing-full').find(e=>e.referenceTransition);assert.ok(expert);
+const assessment=assessDynamicFrame('rowing-full',{pose:null,world:null,width:640,height:480},expert);assert.equal(assessment.referenceTransition,true);assert.ok(assessment.metrics.every(m=>m.guidanceOnly));assert.equal(scoreDynamicRows('rowing-full',[{t:0,valid:true,assessment},{t:1,valid:true,assessment}]).total,null);
+for(const elapsed of [0,500,1000,1499,1500])assert.equal(countdownExpertOpacity(elapsed,3000,.2),.9);
+assert.ok(Math.abs(countdownExpertOpacity(1625,3000,.2)-.55)<1e-9);assert.ok(Math.abs(countdownExpertOpacity(1750,3000,.2)-.2)<1e-9);assert.equal(countdownExpertOpacity(0,3000,0,true),1);
+console.log('PASS: preserved checkpoints, continuous dynamic reference seam, ungraded visual transition, and 90% countdown hold through 1.5 seconds.');
