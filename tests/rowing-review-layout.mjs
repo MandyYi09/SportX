@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {reviewDimensions,paintReviewFrame} from '../src/rowing-review-layout.mjs';
+assert.deepEqual(reviewDimensions(640,480),{width:1280,height:520});
+assert.deepEqual(reviewDimensions(1920,1080),{width:1920,height:580});
+const images=[],translates=[],titles=[],ctx={canvas:{width:1280,height:520},fillRect(){},fillText(t){titles.push(t);},save(){},restore(){},translate(x,y){translates.push([x,y]);},scale(x,y){assert.equal(x,-1);assert.equal(y,1);},drawImage(image,x,y,w,h){images.push({image,w,h});}};
+const video={},overlay={},expert={};let hud=0;
+paintReviewFrame(ctx,{video,overlay,expert,mirrored:true,language:'en',paintPerformance(c,width){assert.equal(width,640);hud++;}});
+assert.deepEqual(images.map(x=>x.image),[video,overlay,expert]);assert.ok(images.every(x=>x.w===640&&x.h===480));
+assert.deepEqual(titles,['Your movement','Expert movement']);assert.equal(hud,1);assert.ok(translates.some(([x,y])=>x===640&&y===40),'Mirror each column without swapping the two columns');
+console.log('PASS: two-column export dimensions, camera/annotation/expert separation, per-column mirroring and student-only FPS.');

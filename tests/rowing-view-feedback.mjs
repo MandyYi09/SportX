@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {rowingViewFeedback} from '../src/rowing-view-feedback.mjs';
+const frame=(t,depth=false)=>({t,valid:true,assessment:{metrics:[{key:'elbow-0',depthUncertain:depth}],occluded:[],missing:[]}});
+assert.deepEqual(rowingViewFeedback([frame(0),frame(.3),frame(.6)]),[],'A camera label alone must never block a measured angle');
+const feedback=rowingViewFeedback([frame(0,true),frame(.3,true),frame(.6,true)]);
+assert.equal(feedback[0].key,'elbow-depth');assert.ok(feedback[0].en.includes('shoulder, elbow and wrist'));
+assert.deepEqual(rowingViewFeedback([frame(0,true),frame(.1)]),[],'A single transient observation must not produce a camera recommendation');
+const missing=[0,.3,.6].map(t=>({...frame(t),assessment:{metrics:[],missing:[{id:27}],occluded:[]}}));
+assert.equal(rowingViewFeedback(missing)[0].key,'legs-framing');
+assert.deepEqual(rowingViewFeedback(missing.map(r=>({...r,valid:false}))),[],'Tracking failure alone cannot identify an unsuitable view');
+console.log('PASS: per-part view limitations, specific camera/framing advice and transient filtering.');
