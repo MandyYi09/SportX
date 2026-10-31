@@ -40,3 +40,9 @@ assert.equal(assessRowing('rowing-half',halfPose,halfRef,1000,1000,halfOptions).
 halfPose[12].visibility=0;
 assert.ok(!assessRowing('rowing-half',halfPose,halfRef,1000,1000,halfOptions).metrics.some(m=>m.kind==='position'),'Without body anchors, do not scale height from the arm being corrected');
 console.log('PASS: half-stroke hands-away keeps a fixed elbow-height target, recognizes corrected height, separates end-on angles from missing elbows and refuses self-scaling.');
+const bendActual={11:{x:100,y:200},13:{x:200,y:200},15:{x:300,y:200}},bendRef={11:{x:100,y:200},13:{x:200,y:200},15:{x:200,y:100}};
+const bend=rowingMovementArrow({key:'elbow-0',ids:[11,13,15],close:false,estimated:false,imageTarget:90},bendActual,bendRef,500,500);
+assert.equal(bend.joint,15,'Bend arrow moves the forearm about the elbow, not the upper arm');
+assert.ok(bend.path.includes(' Q '));
+assert.equal(bend.key,'elbow-0','Mirror display must retain anatomical left identity');
+assert.match(rowingAdjustmentCue({key:'trunk-0',actual:20,target:80,movementDirection:'down'}).en,/^Lower/,'A larger target angle must not override a measured downward height correction');

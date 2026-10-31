@@ -1,49 +1,79 @@
+import {RowingRenderBudget} from './rowing-render-budget.mjs';
 import {createRowingSpeech,adjustmentSpeechId,checkpointSpeechIds,missingSpeechId} from './rowing-speech.mjs';
 import {rowingMovementArrow,renderRowingArrows} from './rowing-arrows.mjs';
 import {RowingFeedbackCycle,RowingLimbFeedback,rowingAdjustmentCue,rowingFeedbackSegments} from './rowing-feedback.mjs';
 import {createRowingExpertOverlay} from './rowing-expert-overlay.mjs';
-import {rowingCheckpoints,rowingReference,assessRowing,fitRowingReference} from './rowing-correction.mjs';
+import {rowingCheckpoints,rowingReference,assessRowing,fitRowingReference,rowingCheckpointComplete} from './rowing-correction.mjs';
+import {createRowingDynamicUI} from './rowing-dynamic-ui.mjs';
 import {sampleCapturedMotion} from './captured-motion.mjs';
 import {RowingOrientation,estimateRowingYaw,sourceLateral} from './rowing-orientation.mjs';
+import {RowingPoseTracker,paintInferredArms} from './rowing-pose-tracker.mjs';
+import {createPosePerformanceHUD} from './pose-performance.mjs';
+import {createRowingPoseDetector} from './rowing-pose-client.mjs';
 
 let detectorPromise;
 function getDetector(){
  return detectorPromise??=(async()=>{
+  if(globalThis.Worker&&globalThis.createImageBitmap){
+   try{return await createRowingPoseDetector();}catch(error){console.warn('Background pose inference unavailable; using main thread.',error);}
+  }
   const {FilesetResolver,PoseLandmarker}=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/vision_bundle.mjs');
   const files=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm');
-  return PoseLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'},runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:.5,minPosePresenceConfidence:.5,minTrackingConfidence:.5});
+  const model=await PoseLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'},runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:.5,minPosePresenceConfidence:.5,minTrackingConfidence:.5});
+  return {backend:'main-thread',detectForVideo:(...args)=>model.detectForVideo(...args),close:()=>model.close()};
  })().catch(error=>{detectorPromise=null;throw error;});
 }
 const connections=[[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,25],[25,27],[24,26],[26,28]];
-export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"male",onDirection=()=>{},onPlayback=()=>{},onControls=()=>{}}){
+export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"male",onDirection=()=>{},onPlayback=()=>{},onControls=()=>{},onCameraStop=()=>{},onCameraStart=async()=>null}){
  const dialog=document.createElement('dialog');dialog.id='rowing-correction';dialog.className='rowing-correction';document.body.append(dialog);
  const orientation=new RowingOrientation(),preparation=new RowingOrientation(),feedbackCycle=new RowingFeedbackCycle(),limbFeedback=new RowingLimbFeedback();
+ const poseTracker=new RowingPoseTracker(),renderBudget=new RowingRenderBudget();let preparationPerformance=null,correctionPerformance=null,recalibrating=false;
+ const previewCanvas=document.createElement('canvas');previewCanvas.id='rowing-preview-skeleton';previewCanvas.className='rowing-preview-skeleton';previewCanvas.hidden=true;
+ previewCanvas.setAttribute('aria-label','Live detected skeleton');document.querySelector('.demo-camera-feed').append(previewCanvas);
+ function previewSkeleton(p){
+  const v=document.getElementById('demo-video'),w=v.videoWidth||960,h=v.videoHeight||540;
+  if(previewCanvas.width!==w)previewCanvas.width=w;if(previewCanvas.height!==h)previewCanvas.height=h;
+  const ctx=previewCanvas.getContext('2d');ctx.clearRect(0,0,w,h);previewCanvas.hidden=!rowActive;
+  previewCanvas.style.transform=mirrored?'scaleX(-1)':'none';
+  const points=Object.fromEntries([11,12,13,14,15,16,23,24,25,26,27,28].filter(i=>{const point=p?.[i];return point&&point.visibility>=.55&&Number.isFinite(point.x)&&Number.isFinite(point.y)&&point.x>=.015&&point.x<=.985&&point.y>=.015&&point.y<=.985;}).map(i=>[i,{x:p[i].x*w,y:p[i].y*h}]));
+  let count=0;ctx.lineCap='round';
+  for(const[a,b]of [...connections,[11,12],[23,24]]){
+   if(!points[a]||!points[b]||p[a].inferred||p[b].inferred)continue;
+   ctx.beginPath();ctx.moveTo(points[a].x,points[a].y);ctx.lineTo(points[b].x,points[b].y);
+   ctx.strokeStyle='#12212bdd';ctx.lineWidth=7;ctx.stroke();ctx.strokeStyle='#a7f3b8';ctx.lineWidth=3;ctx.stroke();count++;
+  }
+  for(const [i,point]of Object.entries(points)){
+   ctx.beginPath();ctx.arc(point.x,point.y,5,0,Math.PI*2);ctx.fillStyle=p[i].inferred?'#9ed4ff':'#a7f3b8';ctx.fill();ctx.strokeStyle='#12212b';ctx.lineWidth=2;ctx.stroke();
+  }
+  const inferred=Object.keys(points).map(Number).filter(i=>p[i].inferred);paintInferredArms(ctx,points,inferred);
+  previewCanvas.dataset.segments=String(count);previewCanvas.dataset.joints=String(Object.keys(points).length);previewCanvas.dataset.inferredJoints=inferred.join(',');
+ }
  let flashes=[],activeErrors=[],feedbackBadge,arrowsLayer,chosenCue=null,cueSince=0;
  const preparationBar=document.createElement('div');preparationBar.id='rowing-preparation';preparationBar.className='rowing-progress';preparationBar.hidden=true;
  preparationBar.innerHTML='<div role="status" aria-live="polite"><strong></strong><span></span></div><button data-preparation-retry hidden></button><button type="button" data-rowing-voice class="rowing-voice" aria-pressed="true"></button><button type="button" data-rowing-mirror class="rowing-mirror" aria-pressed="false"></button>';
  document.getElementById('stage-layout').before(preparationBar);
  let prepStream=null,prepId=null,prepFrame=0,prepGeneration=0,returnStream=null,disposing=false;
- let preparedPose=null,preparedWorld=null,mirrored=false,rowActive=false;
- let stream=null,generation=0,frame=0,id,index=0,detector=null,lastTime=-1,lastDetect=0,lastUi=0,lateral;
+ let preparedPose=null,preparedWorld=null,mirrored=true,rowActive=false;
+ let stream=null,generation=0,frame=0,id,index=0,detector=null,lastTime=-1,lastDetect=0,lastUi=0,lateral,inferenceMs=0;
  const tr=(en,zh)=>getLanguage()==='zh'?zh:en;
  let video,canvas,status,metrics,steps,help,retry,opacityControl,expertOverlay,lastPose=null,lastWorld=null,modelFailed=false;
  let relocate,phaseTitle,phaseNote,lastAssessment;
  const speech=createRowingSpeech({getLanguage,onState:syncVoice,onPlayback});
- let reviewMode=null,awaitingReturn=false,returnSince=null,speechHeld=false,voiceAvailable=false,quietUntil=0;
- let speechContext='',entryDemo=true;
+ let reviewMode=null,awaitingReturn=false,returnSince=null,speechHeld=false,quietUntil=0;
+ let speechContext='',entryDemo=true,dynamic=null,completionSince=null,completionLast=null,completed=new Set();
  function syncVoice(){
   const {enabled,blocked}=speech.state();
   for(const button of document.querySelectorAll('[data-rowing-voice]')){
-   button.disabled=!voiceAvailable;button.setAttribute('aria-pressed',String(voiceAvailable&&enabled));
-   const label=!voiceAvailable?tr('Voice · N/A','语音 · 未启用'):blocked?tr('Tap for voice','点此启用语音'):tr(enabled?'Voice · On':'Voice · Off',enabled?'语音 · 开':'语音 · 关');
+   button.disabled=false;button.setAttribute('aria-pressed',String(enabled));
+   const label=blocked?tr('Tap for voice','点此启用播报'):tr(enabled?'Speech · On':'Speech · Off',enabled?'播报 · 开':'播报 · 关');
    if(button.textContent!==label)button.textContent=label;
-   button.title=!voiceAvailable?tr('Enable voice control first','请先开启语音控制'):tr('Prerecorded synthetic voice · follows selected language','预制合成语音 · 跟随所选语言');
-   button.onclick=()=>{speechContext='';if(blocked)speech.unlock();else speech.setEnabled(!enabled);};
+   button.title=tr('Spoken guidance · no microphone required','语音播报 · 无需开启麦克风');
+   button.onclick=()=>{speechContext='';if(blocked)speech.unlock();else speech.setEnabled(!enabled);dynamic?.syncSpeech();};
   }
  }
  const hasCamera=()=>rowActive&&!!(dialog.open?returnStream:prepStream)?.getVideoTracks().some(track=>track.readyState==='live');
- function say(id,options={}){if(!voiceAvailable||document.hidden||!hasCamera()||speechHeld||performance.now()<quietUntil||reviewMode||awaitingReturn){speech.stop();return;}speech.request(id,options);}
- const gesture=e=>{if(e.target.closest('#camera,[data-voice-control]')||hasCamera()&&e.target.closest('#start-rowing-correction,[data-preparation-retry],[data-pose],[data-language],[data-rowing-voice]'))speech.unlock();};
+ function say(id,options={}){if(document.hidden||!hasCamera()||speechHeld||performance.now()<quietUntil||reviewMode||awaitingReturn){speech.stop();return;}speech.request(id,options);}
+ const gesture=e=>{if(e.target.closest('#camera,[data-voice-control]')||hasCamera()&&e.target.closest('#start-rowing-correction,#start-rowing-dynamic,[data-preparation-retry],[data-pose],[data-language],[data-rowing-voice]'))speech.unlock();};
  document.addEventListener('click',gesture,true);
  const languageObserver=new MutationObserver(()=>{speech.stop();speechContext='';syncVoice();syncPause();});
  languageObserver.observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
@@ -62,6 +92,7 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   if(video)video.style.transform=transform;
   if(canvas)canvas.style.transform=transform;
   if(arrowsLayer)arrowsLayer.style.transform=transform;
+  previewCanvas.style.transform=transform;
   for(const button of document.querySelectorAll('[data-rowing-mirror]')){
    button.setAttribute('aria-pressed',String(mirrored));
    button.textContent=tr(mirrored?'Mirror · On':'Mirror · Off',mirrored?'镜像 · 开':'镜像 · 关');
@@ -70,12 +101,21 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   }
  }
  function stopStream(){stream?.getTracks().forEach(t=>{t.onended=null;t.stop();});stream=null;if(video)video.srcObject=null;}
- function close(){
+ function releaseCorrectionCamera(){generation++;cancelAnimationFrame(frame);stopStream();returnStream?.getTracks().forEach(t=>{t.onended=null;t.stop();});returnStream=null;cancelPreparation();onCameraStop();}
+ async function ensureCorrectionCamera(){
+  if(stream?.active)return stream;
+  const source=await onCameraStart();if(!dialog.open){source?.getTracks().forEach(t=>t.stop());onCameraStop();return null;}
+  if(!source?.active)return null;returnStream=source;await startLockedCamera(source);return stream;
+ }
+ function close({keepCamera=false}={}){
+  correctionPerformance?.dispose();correctionPerformance=null;
+  dynamic?.dispose();dynamic=null;completionSince=null;completionLast=null;
   reviewMode=null;awaitingReturn=false;returnSince=null;
   speech.reset();speechContext='';
   const wasOpen=dialog.open,resume=returnStream;returnStream=null;
   generation++;cancelAnimationFrame(frame);stopStream();orientation.reset();feedbackCycle.reset();limbFeedback.reset();flashes=[];dialog.close();
-  if(wasOpen&&!disposing&&resume?.active)void prepare(id,resume);
+  if(keepCamera&&wasOpen&&!disposing&&resume?.active)void prepare(id,resume);
+  else{resume?.getTracks().forEach(t=>{t.onended=null;t.stop();});cancelPreparation();onCameraStop();}
  }
  function prepPhase(key,en,zh,noteEn,noteZh){
   preparationBar.dataset.phase=key;
@@ -86,8 +126,10 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   else if(key==='locating')say('setup-shoulders',{delay:1800,repeatMs:15000});
   else if(key==='error')say('tracking-lost',{delay:1200,repeatMs:15000});
  }
- function readyButton(){const b=document.getElementById('start-rowing-correction');if(b)b.disabled=!preparation.read().ready;}
+ function readyButton(){for(const key of ['start-rowing-correction','start-rowing-dynamic']){const b=document.getElementById(key);if(b)b.disabled=!preparation.read().ready;}}
  function cancelPreparation(){
+  previewCanvas.hidden=true;previewCanvas.getContext('2d').clearRect(0,0,previewCanvas.width,previewCanvas.height);
+  preparationPerformance?.dispose();preparationPerformance=null;poseTracker.reset();
   speech.reset();speechContext='';
   prepGeneration++;cancelAnimationFrame(prepFrame);prepStream=null;preparedPose=null;preparedWorld=null;preparation.reset();readyButton();
   preparationBar.querySelector('[data-preparation-retry]').hidden=true;
@@ -97,6 +139,7 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   cancelPreparation();if(!rowingCheckpoints[poseId]||!externalStream?.active)return;
   prepId=poseId;prepStream=externalStream;rowActive=true;syncMirror();const token=prepGeneration;
   const v=document.getElementById('demo-video');let lastVideo=-1,lastDetection=0;
+  preparationPerformance=createPosePerformanceHUD(document.getElementById('demo-camera'),v);
   const axis=sourceLateral(sampleCapturedMotion(poseId,rowingCheckpoints[poseId][0].time).coords);
   prepPhase('loading','Preparing tracking','正在准备识别','Your camera preview is ready.','相机画面已就绪。');
   document.querySelector('#demo-camera .demo-camera-heading strong').textContent=tr('Your camera','你的相机');
@@ -107,18 +150,31 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
    prepPhase('error','Tracking unavailable','暂时无法识别','Check your connection and retry.','请检查网络后重试。');preparationBar.querySelector('[data-preparation-retry]').hidden=false;return;
   }finally{clearTimeout(timeout);}
   if(token!==prepGeneration)return;
-  function tick(now){
+  async function tick(now){
    if(token!==prepGeneration||!externalStream.active||dialog.open)return;
-   if(v.readyState>=2&&v.currentTime!==lastVideo&&now-lastDetection>100){
+   if(v.readyState>=2&&v.currentTime!==lastVideo&&now-lastDetection>(model.backend==='worker'?66:Math.max(66,inferenceMs*2.5))){
     lastVideo=v.currentTime;lastDetection=now;
     try{
-     const result=model.detectForVideo(v,now);preparedPose=result.landmarks[0];preparedWorld=result.worldLandmarks?.[0]||null;
-     const view=preparation.update(estimateRowingYaw(preparedPose,preparedWorld,axis),now);
+     const inferenceStart=performance.now(),result=await model.detectForVideo(v,now);
+     if(token!==prepGeneration||dialog.open||!externalStream.active)return;
+     const tracked=poseTracker.update(result.landmarks[0],result.worldLandmarks?.[0]||null,now,v.videoWidth||960,v.videoHeight||540);
+     const elapsed=result.inferenceMs??performance.now()-inferenceStart;inferenceMs=inferenceMs*.8+elapsed*.2;renderBudget.observeInference(result.roundTripMs??elapsed);preparationPerformance?.markInference(elapsed);preparedPose=tracked.pose;preparedWorld=tracked.world;
+     preparationBar.dataset.inferenceBackend=model.backend;
+     previewSkeleton(preparedPose);
+     // Calibration uses corresponding raw image/world coordinates. Limb smoothing
+     // is for correction and must not change the sign check against current depth.
+     const estimate=estimateRowingYaw(result.landmarks[0],result.worldLandmarks?.[0],axis);
+     const view=preparation.update(estimate,now);
      if(view.liveYaw!==null){onDirection(view.yaw);preparationBar.dataset.yaw=String(view.yaw);}
      if(view.ready)prepPhase('ready','Direction ready','朝向已就绪','Start correction to lock this direction.','点击开始纠错，锁定当前朝向。');
-     else prepPhase('locating','Finding your direction','正在识别朝向','Keep your shoulders visible for a moment.','请让双肩入镜，稍作停留。');
+     else if(estimate)prepPhase('locating','Stabilizing direction','正在稳定朝向','Shoulders detected. Hold briefly while direction settles.','已识别双肩，请稍作停留，正在稳定朝向。');
+     else{
+      const shoulders=[11,12].every(i=>{const p=result.landmarks[0]?.[i];return p&&p.visibility>=.55&&p.x>.015&&p.x<.985&&p.y>.015&&p.y<.985;});
+      prepPhase('locating',shoulders?'Checking shoulder depth':'Finding your shoulders',shoulders?'正在确认肩部深度':'正在寻找双肩',shoulders?'Shoulders are visible; waiting for a consistent direction estimate.':'Keep both shoulders in view.',shoulders?'双肩已在画面内，正在等待一致的朝向估计。':'请让双肩入镜。');
+     }
      readyButton();
     }catch{
+     if(token!==prepGeneration||dialog.open)return;
      preparation.reset();readyButton();prepPhase('error','Tracking paused','识别已暂停','Retry to find your direction.','请重试朝向识别。');preparationBar.querySelector('[data-preparation-retry]').hidden=false;return;
     }
    }
@@ -129,6 +185,8 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
  preparationBar.querySelector('[data-preparation-retry]').textContent=tr('Retry','重试');
  preparationBar.querySelector('[data-preparation-retry]').onclick=()=>{if(prepStream)void prepare(prepId,prepStream);};
  function selectCheckpoint(i){
+  if(dynamic&&dynamic.state()!=='off')return;
+  completionSince=null;completionLast=null;
   reviewMode=null;awaitingReturn=false;returnSince=null;syncPause();
   speech.reset();speechContext='';entryDemo=true;
   feedbackCycle.reset();limbFeedback.reset();flashes=[];activeErrors=[];chosenCue=null;
@@ -139,24 +197,29 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   lastAssessment=draw(lastPose);if(detector&&stream)update(lastAssessment);
  }
  function draw(p,now=performance.now(),advance=false){
-  const w=canvas.width=video.videoWidth||960,h=canvas.height=video.videoHeight||540,ctx=canvas.getContext('2d'),view=orientation.read(),yaw=view.yaw;
+  correctionPerformance?.markRender();
+  const w=video.videoWidth||960,h=video.videoHeight||540;
+  if(canvas.width!==w)canvas.width=w;if(canvas.height!==h)canvas.height=h;
+  const ctx=canvas.getContext('2d'),view=orientation.read(),yaw=view.yaw;ctx.clearRect(0,0,w,h);
   const source=sampleCapturedMotion(id,rowingCheckpoints[id][index].time).coords;
   const ref=rowingReference(id,index,1,yaw),assessment=assessRowing(id,p,ref,w,h,{world:lastWorld,source,yaw});
   const ghost=fitRowingReference(ref,assessment.actual,w,h,assessment.side);
   const line=(a,b,color,width)=>{ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap='round';ctx.stroke();};
   lastPose=p;
-  const valid=!reviewMode&&!awaitingReturn&&view.locked&&!view.offAxis&&!assessment.small&&assessment.metrics.length>0&&!modelFailed;
-  const anyError=assessment.metrics.some(m=>!m.close),allClose=!anyError;
+  const observed=assessment.metrics.filter(m=>!m.estimated);
+  const valid=!reviewMode&&!awaitingReturn&&view.locked&&!view.offAxis&&!assessment.small&&observed.length>0&&!modelFailed;
+  const anyError=observed.some(m=>!m.close),allClose=!anyError;
   const cycle=advance?feedbackCycle.update(now,{valid,close:allClose}):feedbackCycle.read();
-  if(advance){flashes=limbFeedback.update(assessment.metrics,valid&&cycle.showHints,now);activeErrors=limbFeedback.errors(assessment.metrics,valid&&cycle.showHints,now);}
+  if(advance){flashes=limbFeedback.update(observed,valid&&cycle.showHints,now);activeErrors=limbFeedback.errors(observed,valid&&cycle.showHints,now);}
   const displayHints=valid&&cycle.showHints;
   const emphasize=reviewMode==='review'||cycle.mode==='demonstrate';
   const opacity=emphasize?.95:Number(opacityControl.value);
-  video.style.opacity=emphasize?'.30':'1';
-  dialog.dataset.feedback=cycle.mode;canvas.dataset.expertOpacity=String(opacity);
+  const split=dynamic?.isLiveSplit();video.style.opacity=!split&&emphasize?'.30':'1';
+  dialog.dataset.feedback=cycle.mode;canvas.dataset.expertOpacity=String(split?1:opacity);
   if(!modelFailed)try{
    expertOverlay??=createRowingExpertOverlay();
-   const rendered=expertOverlay.draw(ctx,{id,index,yaw,ghost,width:w,height:h,gender:getGender(),opacity});
+   const expertStarted=performance.now();const rendered=split?dynamic.drawStaticExpert({time:rowingCheckpoints[id][index].time,yaw,width:w,height:h,gender:getGender()}):expertOverlay.draw(ctx,{id,index,yaw,ghost,width:w,height:h,gender:getGender(),opacity,...renderBudget.read(now)});
+   if(rendered.rendered){renderBudget.observeRender(performance.now()-expertStarted);correctionPerformance?.markExpert();}
    canvas.dataset.expertModel=rendered.gender;canvas.dataset.expertTriangles=String(rendered.meshes);
   }catch{modelFailed=true;canvas.dataset.expertModel='unavailable';}
   canvas.dataset.expertYaw=String(yaw);dialog.dataset.locked=String(view.locked);
@@ -174,6 +237,7 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   const drawn=new Set(),arrows=[];
   for(const m of arrowRows){const limb=m.key.endsWith('-1')?'right':'left';if(drawn.has(limb))continue;const arrow=rowingMovementArrow(m,assessment.actual,ghost,w,h);if(arrow){arrows.push(arrow);drawn.add(limb);}if(arrows.length>=2)break;}
   renderRowingArrows(arrowsLayer,arrows,w,h);
+  paintInferredArms(ctx,assessment.actual,assessment.inferred);
   return assessment;
  }
  function update(assessment){
@@ -181,10 +245,10 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
    phase(reviewMode==='review'?'review':reviewMode?'paused':'returning',reviewMode==='review'?'View the expert':reviewMode?'Correction paused':'Return to your position',reviewMode==='review'?'查看专家示范':reviewMode?'纠错已暂停':'请回到练习位置',reviewMode?'Direction and stage saved. Resume when ready.':'Waiting for your joints; direction stays locked.',reviewMode?'朝向与阶段已保留，准备好后继续纠错。':'正在等待关节入镜，朝向保持锁定。');
    metrics.replaceChildren();feedbackBadge.hidden=true;status.hidden=true;relocate.hidden=true;return;
   }
-  const view=orientation.read(),available=assessment.metrics,cycle=feedbackCycle.read();
+  const view=orientation.read(),available=assessment.metrics.filter(m=>!m.estimated),cycle=feedbackCycle.read();
   const valid=view.locked&&!view.offAxis&&!assessment.small&&available.length>0&&!modelFailed;
   const canConfirm=available.some(m=>!m.guidanceOnly);
-  const partial=assessment.missing.length>0||assessment.occluded.length>0||available.length<(id==='rowing-arms'?4:id==='rowing-half'?6:8);
+  const partial=assessment.missing.length>0||assessment.occluded.length>0||assessment.inferred?.length>0||available.length<(id==='rowing-arms'?4:id==='rowing-half'?6:8);
   feedbackBadge.hidden=true;feedbackBadge.dataset.state='neutral';
   relocate.hidden=false;
   metrics.replaceChildren();
@@ -197,7 +261,7 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   }else if(available.length&&!canConfirm&&available.every(m=>m.close)){
    phase('limited',cycle.mode==='aligned'?'✓ Upper-arm height aligned':'Hold the arm height',cycle.mode==='aligned'?'✓ 上臂高度已对齐':'保持上臂高度','Keep this height. Elbow bend cannot be measured from this view.','保持这个高度即可；当前机位无法测量屈肘角度。');
   }else if(cycle.mode==='aligned'&&valid){
-   phase('aligned',partial?'✓ Visible parts aligned':'✓ Aligned',partial?'✓ 可见部位已对齐':'✓ 已对齐','Hold this position.','保持这个姿势。');
+   phase('aligned','All visible parts are well-aligned.','所有可见部位均已对齐。','Hold this position.','保持这个姿势。');
   }else if(valid){
    const failed=available.filter(m=>!m.close).sort((a,b)=>(b.key.startsWith('height')?1:0)-(a.key.startsWith('height')?1:0)||b.delta/b.tolerance-a.delta/a.tolerance);
    if(failed.length){
@@ -213,14 +277,15 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
     const labels={ 'left-arm':['Left arm corrected','左臂已调整'],'right-arm':['Right arm corrected','右臂已调整'],'left-leg':['Left leg corrected','左腿已调整'],'right-leg':['Right leg corrected','右腿已调整']};
     feedbackBadge.textContent='✓ '+flashes.map(f=>f.metrics.every(m=>m.guidanceOnly)?tr(f.key.startsWith('right')?'Right arm height corrected':'Left arm height corrected',f.key.startsWith('right')?'右臂高度已调整':'左臂高度已调整'):tr(...labels[f.key])).join(tr(' · ','、'));feedbackBadge.dataset.state='good';feedbackBadge.hidden=false;
    }else if(valid&&cycle.mode==='aligned'){
-    feedbackBadge.textContent=!canConfirm?tr('✓ Upper-arm height aligned','✓ 上臂高度已对齐'):tr(partial?'✓ Visible parts aligned':'✓ Aligned',partial?'✓ 可见部位已对齐':'✓ 已对齐');feedbackBadge.dataset.state='good';feedbackBadge.hidden=false;
+    feedbackBadge.textContent=!canConfirm?tr('✓ Upper-arm height aligned','✓ 上臂高度已对齐'):tr('All visible parts are well-aligned.','所有可见部位均已对齐。');feedbackBadge.dataset.state='good';feedbackBadge.hidden=false;
    }
   }
   let note='';
   if(modelFailed)note=tr('Expert model unavailable. Reload with WebGL enabled.','专家模型无法显示，请启用 WebGL 后刷新。');
   else if(view.locked&&assessment.small)note=tr('Move a little closer so your joints are clearer.','请稍微靠近，让关节更清晰。');
   else if(view.locked&&assessment.occluded.length&&!available.some(m=>!m.close))note=tr('Visible joints are tracked; depth prevents some angle measurements.','可见关节已识别；部分角度因朝向镜头而无法测量。');
-  else if(assessment.missing.length)note=tr('Not clear: ','尚未看清：')+assessment.missing.map(p=>tr(p.en,p.zh)+(p.reason==='outside'?tr(' (out of frame)','（画面外）'):'')).join(tr(', ','、'));
+  else if(assessment.inferred?.length)note=tr('Blue dashed limbs are short-term estimates; they are not scored.','蓝色虚线为短时推断的肢体，不据此判错或计分。');
+  else if(assessment.missing.length)note=tr('Not clear: ','尚未看清：')+assessment.missing.map(p=>tr(p.en,p.zh)+(p.reason==='outside'?tr(' (estimated outside view)','（估计位置在画外）'):'')).join(tr(', ','、'));
   else if(!view.locked)note=tr('The expert follows your horizontal direction.','专家模型正在跟随你的水平朝向。');
   status.textContent=note;status.hidden=!note;
   syncVoice();
@@ -254,13 +319,19 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
    const row=document.createElement('div');row.className='rowing-metric';row.textContent=`${tr(m.part,m.zh)} · ${m.kind==='position'?tr(m.close?'Height matches':'Adjust height',m.close?'高度接近':'需要调整高度'):`${Math.round(m.actual)}° / ${Math.round(m.target)}°`} ${m.close?'≈':'↗'}`;metrics.append(row);
   }
  }
- function track(now,token){
+ async function track(now,token){
   if(token!==generation||!dialog.open||!stream)return;
+  if(recalibrating){frame=requestAnimationFrame(t=>track(t,token));return;}
+  if(dynamic&&['review','exporting','processing','preparing'].includes(dynamic.state())){frame=requestAnimationFrame(t=>track(t,token));return;}
   if(reviewMode){feedbackCycle.pause();limbFeedback.pause();update(lastAssessment);frame=requestAnimationFrame(t=>track(t,token));return;}
-  if(video.readyState>=2&&video.currentTime!==lastTime&&now-lastDetect>100){
+  if(video.readyState>=2&&video.currentTime!==lastTime&&now-lastDetect>(detector.backend==='worker'?66:Math.max(66,inferenceMs*2.5))){
    lastTime=video.currentTime;lastDetect=now;
    try{
-    const result=detector.detectForVideo(video,now),p=result.landmarks[0];lastWorld=result.worldLandmarks?.[0]||null;
+    const inferenceStart=performance.now(),cameraTime=video.currentTime,result=await detector.detectForVideo(video,now);
+    if(token!==generation||!dialog.open||!stream)return;
+    if(dynamic&&['review','exporting','processing'].includes(dynamic.state())){frame=requestAnimationFrame(t=>track(t,token));return;}
+    const tracked=poseTracker.update(result.landmarks[0],result.worldLandmarks?.[0]||null,now,video.videoWidth||960,video.videoHeight||540),p=tracked.pose;lastWorld=tracked.world;
+    const elapsed=result.inferenceMs??performance.now()-inferenceStart;inferenceMs=inferenceMs*.8+elapsed*.2;renderBudget.observeInference(result.roundTripMs??elapsed);correctionPerformance?.markInference(elapsed);dialog.dataset.inferenceBackend=detector.backend;
     if(awaitingReturn){
      const visible=p&&[11,12].some(s=>[s,s+2].every(j=>(p[j]?.visibility??0)>.65&&p[j].x>.02&&p[j].x<.98&&p[j].y>.02&&p[j].y<.98));
      if(!visible)returnSince=null;else returnSince??=now;
@@ -268,11 +339,29 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
      awaitingReturn=false;returnSince=null;orientation.movedSince=null;orientation.reposition=false;
     }
     orientation.update(estimateRowingYaw(p,lastWorld,lateral),now);
+    if(dynamic&&dynamic.state()!=='off'){
+     dynamic.consume(now,p,lastWorld,{rawPose:result.landmarks[0]??null,rawWorld:result.worldLandmarks?.[0]??null,inference:{timestampMs:now,startedAtMs:inferenceStart,completedAtMs:performance.now(),latencyMs:elapsed,captureMs:result.captureMs??null,roundTripMs:result.roundTripMs??null,cameraTimeSeconds:cameraTime,backend:detector.backend}});frame=requestAnimationFrame(t=>track(t,token));return;
+    }
     lastAssessment=draw(p,now,true);
+    const view=orientation.read();
+    const complete=!awaitingReturn&&!view.offAxis&&view.locked&&feedbackCycle.read().showHints&&rowingCheckpointComplete(id,lastAssessment);
+    if(!complete||completionLast===null||now-completionLast>500)completionSince=null;
+    completionLast=now;
+    if(complete){
+     completionSince??=now;
+     if(now-completionSince>=1000){
+      steps.children[index]?.setAttribute('data-complete','true');completed.add(index);completionSince=null;
+      if(completed.size<rowingCheckpoints[id].length){
+       const next=rowingCheckpoints[id].findIndex((_,i)=>i>index&&!completed.has(i));
+       selectCheckpoint(next>=0?next:rowingCheckpoints[id].findIndex((_,i)=>!completed.has(i)));
+      }
+      else{speech.reset();reviewMode=null;dynamic.enter();frame=requestAnimationFrame(t=>track(t,token));return;}
+     }
+    }
     // Clear stale metrics immediately when direction or tracking becomes invalid.
     if(orientation.read().offAxis||!p)metrics.replaceChildren();
     if(now-lastUi>200){lastUi=now;update(lastAssessment);}
-   }catch{speech.stop();phase('error','Tracking paused','识别已暂停','Retry tracking below.','请重试识别。');metrics.replaceChildren();feedbackBadge.hidden=true;feedbackCycle.pause();limbFeedback.pause();flashes=[];draw(null);retry.hidden=false;return;}
+   }catch{if(token!==generation||!dialog.open)return;speech.stop();phase('error','Tracking paused','识别已暂停','Retry tracking below.','请重试识别。');metrics.replaceChildren();feedbackBadge.hidden=true;feedbackCycle.pause();limbFeedback.pause();flashes=[];draw(null);retry.hidden=false;return;}
   }
   frame=requestAnimationFrame(t=>track(t,token));
  }
@@ -283,9 +372,28 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
    if(token!==generation||!dialog.open)return;
    stream.getVideoTracks()[0].onended=()=>{if(token===generation){speech.stop();metrics.replaceChildren();phase('error','Camera disconnected','相机已断开','Return to preparation to reconnect.','请返回准备页面重新连接。');feedbackBadge.hidden=true;feedbackCycle.pause();limbFeedback.pause();flashes=[];draw(null);retry.hidden=false;}};
    detector=await getDetector();if(token!==generation||!stream)return;
-   lastAssessment=draw(lastPose);update(lastAssessment);
+   if(dynamic&&dynamic.state()!=='off')dynamic.consume(performance.now(),lastPose,lastWorld);
+   else{lastAssessment=draw(lastPose);update(lastAssessment);}
    frame=requestAnimationFrame(t=>track(t,token));
   }catch{if(token===generation){phase('error','Camera unavailable','相机暂不可用','Return to preparation to reconnect.','请返回准备页面重新连接。');retry.hidden=false;}}
+ }
+ async function repositionDynamic(){
+  if(!dialog.open||!stream?.active||recalibrating)return false;
+  recalibrating=true;poseTracker.reset();const token=generation,calibration=new RowingOrientation(),deadline=performance.now()+10000;
+  let previous=-1;
+  try{
+   const model=await getDetector();
+   while(performance.now()<deadline&&token===generation&&dialog.open){
+    if(video.readyState>=2&&video.currentTime!==previous){
+     previous=video.currentTime;const now=performance.now(),result=await model.detectForVideo(video,now);
+     if(token!==generation||!dialog.open)return false;
+     const view=calibration.update(estimateRowingYaw(result.landmarks[0],result.worldLandmarks?.[0],lateral),now);
+     if(view.ready){orientation.reset();orientation.yaw=view.yaw;orientation.ready=true;orientation.lock();onDirection(view.yaw);return true;}
+    }
+    await new Promise(resolve=>setTimeout(resolve,75));
+   }
+   return false;
+  }finally{recalibrating=false;}
  }
  document.addEventListener('visibilitychange',()=>{if(document.hidden){speech.stop();speechContext='';feedbackCycle.pause();limbFeedback.pause();flashes=[];if(feedbackBadge)feedbackBadge.hidden=true;}});
  dialog.addEventListener('cancel',e=>{e.preventDefault();close();});
@@ -296,16 +404,22 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   const review=dialog.querySelector('[data-rowing-review]');if(review)review.textContent=tr('View demonstration','查看示范');
  }
  function pause(mode='paused'){
+  if(dynamic&&dynamic.state()!=='off')return false;
   if(!dialog.open)return false;
   reviewMode=mode;awaitingReturn=false;returnSince=null;speech.reset();speechContext='';feedbackCycle.pause();limbFeedback.pause();flashes=[];activeErrors=[];syncPause();draw(lastPose);update(lastAssessment);return true;
  }
  function resume(){
+  if(dynamic&&dynamic.state()!=='off')return false;
   if(!dialog.open)return false;
   reviewMode=null;awaitingReturn=true;returnSince=null;speechContext='';feedbackCycle.pause();limbFeedback.pause();syncPause();draw(lastPose);update(lastAssessment);return true;
  }
  return {prepare,cancelPreparation,isReady:()=>preparation.read().ready,
   isOpen:()=>dialog.open,pause,resume,
-  setVoiceAvailable(value){if(voiceAvailable===value)return;voiceAvailable=value;speech.reset();speechContext='';if(value)speech.unlock();syncVoice();},
+  dynamicState:()=>dynamic?.state()??'off',
+  startDynamic:()=>dynamic?.begin()??false,
+  finishDynamic:options=>dynamic?.finish(options)??false,
+  repositionDynamic:()=>dynamic?.reposition(),
+  noteSpeechStart:time=>dynamic?.noteSpeechStart(time),
   holdSpeech(value){speechHeld=value;if(value)speech.stop();else quietUntil=0;speechContext='';},
   interruptSpeech(){quietUntil=performance.now()+1800;speech.stop();speechContext='';},
   mirror(value){mirrored=value;syncMirror();},
@@ -314,23 +428,27 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
   repeatDemo(){if(!dialog.open)return false;selectCheckpoint(index);return true;},
  setPose(poseId,externalStream){
   rowActive=!!rowingCheckpoints[poseId];preparationBar.hidden=!rowActive;syncMirror();syncVoice();
-  const b=document.getElementById('start-rowing-correction');if(b)preparationBar.append(b);
+  for(const key of ['start-rowing-correction','start-rowing-dynamic']){const b=document.getElementById(key);if(b)preparationBar.append(b);}
   if(externalStream&&rowingCheckpoints[poseId])void prepare(poseId,externalStream);else cancelPreparation();
  },
- open(poseId){
+ open(poseId,{dynamicOnly=false}={}){
   if(!rowingCheckpoints[poseId]||prepId!==poseId||!prepStream?.active||!preparation.read().ready)return;
   const external=prepStream,lockedYaw=preparation.read().yaw,pose=preparedPose,world=preparedWorld;
+  preparationPerformance?.dispose();preparationPerformance=null;
   prepGeneration++;cancelAnimationFrame(prepFrame);preparation.ready=false;readyButton();
-  beforeOpen();id=poseId;index=0;lastUi=0;lastPose=pose;lastWorld=world;detector=null;modelFailed=false;orientation.reset();
+  beforeOpen();id=poseId;index=0;completed=new Set();lastUi=0;lastPose=pose;lastWorld=world;detector=null;modelFailed=false;orientation.reset();
   orientation.yaw=lockedYaw;orientation.ready=true;orientation.lock();returnStream=external;
   lateral=sourceLateral(sampleCapturedMotion(id,rowingCheckpoints[id][0].time).coords);
-  dialog.innerHTML=`<div class="rowing-header"><div><small>${tr('ROWING · STATIC CORRECTION','赛艇 · 静态纠错')}</small><h2>${tr('Find your position','找到你的姿态')}</h2></div><button type="button" data-close>${tr('Close ×','关闭 ×')}</button></div><nav class="rowing-checkpoints" aria-label="${tr('Static checkpoints','静态关键姿态')}"></nav><div class="rowing-progress"><div role="status" aria-live="polite"><strong data-phase-title></strong><span data-phase-note></span></div><button data-relocate hidden>${tr('Reposition','重新定位')}</button></div><div class="rowing-voice-bar"><button type="button" data-rowing-voice class="rowing-voice" aria-pressed="true"></button></div><div class="rowing-feed"><video autoplay playsinline muted></video><canvas></canvas><svg class="rowing-arrows" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg><button type="button" data-rowing-mirror class="rowing-mirror rowing-feed-mirror" aria-pressed="false"></button><div class="rowing-result" role="status" aria-live="polite" hidden></div><span class="rowing-legend">${tr('Expert model / Adjust these parts','专家模型 / 待调整部位')}</span></div><p class="rowing-instruction"></p><p class="rowing-status" hidden></p><details class="rowing-angle-details"><summary>${tr('Angle details','角度详情')}</summary><div class="rowing-metrics"></div></details><details class="rowing-settings"><summary>${tr('Camera & display','相机与显示设置')}</summary><div class="rowing-options"><label>${tr('Expert opacity','专家模型透明度')}<input data-opacity type="range" min="0.2" max="0.8" step="0.05" value="0.45" aria-label="${tr('Expert opacity','专家模型透明度')}"></label></div><p class="rowing-setup">${tr('Keep the camera level. If framing is too narrow, try a wider lens or your phone. Horizontal direction is estimated automatically.','保持相机水平。取景太窄时可换广角镜头或使用手机；系统会自动估计水平朝向。')}</p></details><button data-retry hidden>${tr('Return to preparation','返回准备页面')}</button>`;
+  dialog.innerHTML=`<div class="rowing-header"><div><small>${tr('ROWING · STATIC CORRECTION','赛艇 · 静态纠错')}</small><h2>${tr('Find your position','找到你的姿态')}</h2></div><button type="button" data-close>${tr('Close ×','关闭 ×')}</button></div><nav class="rowing-checkpoints" aria-label="${tr('Static checkpoints','静态关键姿态')}"></nav><div class="rowing-progress"><div role="status" aria-live="polite"><strong data-phase-title></strong><span data-phase-note></span></div><button data-relocate hidden>${tr('Reposition','重新定位')}</button></div><div class="rowing-voice-bar"><button type="button" data-rowing-voice class="rowing-voice" aria-pressed="true"></button></div><div class="rowing-feed"><video autoplay playsinline muted></video><canvas></canvas><svg class="rowing-arrows" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg><button type="button" data-rowing-mirror class="rowing-mirror rowing-feed-mirror" aria-pressed="false"></button><div class="rowing-result" role="status" aria-live="polite" hidden></div><span class="rowing-legend">${tr('Expert model / Adjust these parts','专家模型 / 待调整部位')}</span></div><p class="rowing-instruction"></p><p class="rowing-status" hidden></p><details class="rowing-angle-details"><summary>${tr('Angle details','角度详情')}</summary><div class="rowing-metrics"></div></details><details class="rowing-settings"><summary>${tr('Camera & display','相机与显示设置')}</summary><div class="rowing-options"><label>${tr('Expert opacity','专家模型不透明度')}<input data-opacity type="range" min="0" max="1" step="0.05" value="0.7" aria-label="${tr('Expert opacity','专家模型不透明度')}"></label></div><p class="rowing-setup">${tr('Keep the camera level. If framing is too narrow, try a wider lens or your phone. Horizontal direction is estimated automatically.','保持相机水平。取景太窄时可换广角镜头或使用手机；系统会自动估计水平朝向。')}</p></details><button data-retry hidden>${tr('Return to preparation','返回准备页面')}</button>`;
   video=dialog.querySelector('video');canvas=dialog.querySelector('canvas');status=dialog.querySelector('.rowing-status');metrics=dialog.querySelector('.rowing-metrics');steps=dialog.querySelector('nav');help=dialog.querySelector('.rowing-instruction');retry=dialog.querySelector('[data-retry]');opacityControl=dialog.querySelector('[data-opacity]');feedbackBadge=dialog.querySelector('.rowing-result');arrowsLayer=dialog.querySelector('.rowing-arrows');
   relocate=dialog.querySelector('[data-relocate]');phaseTitle=dialog.querySelector('[data-phase-title]');phaseNote=dialog.querySelector('[data-phase-note]');
+  correctionPerformance=createPosePerformanceHUD(dialog.querySelector('.rowing-feed'),video);
+  dynamic=createRowingDynamicUI({dialog,video,canvas,arrowsLayer,id,getLanguage,getGender,renderBudget,getYaw:()=>orientation.read().yaw,getStream:()=>stream,getOverlay:()=>expertOverlay??=createRowingExpertOverlay(),onPlayback,isSpeechEnabled:()=>speech.state().enabled,onRender:()=>correctionPerformance?.markRender(),onExpert:()=>correctionPerformance?.markExpert(),onReposition:repositionDynamic,onReleaseCamera:releaseCorrectionCamera,onEnsureCamera:ensureCorrectionCamera,onShowFPS:value=>{correctionPerformance?.setVisible(value);const control=dialog.querySelector('[data-static-fps]');if(control)control.checked=value;},onLiveLayout:()=>{if(dynamic?.state()==='off'){lastAssessment=draw(lastPose);update(lastAssessment);}},onAligned:active=>{if(active)say('aligned-visible',{delay:0,repeatMs:10000});else speech.stop();},onPerformance:(action,time)=>{if(action==='begin')correctionPerformance?.beginRecording();else if(action==='finish')return correctionPerformance?.finishRecording();else if(action==='seek')return correctionPerformance?.showRecordedTime(time);else correctionPerformance?.resumeLive();}});
+  const fpsOption=document.createElement('label');fpsOption.innerHTML=tr('<input data-static-fps type="checkbox"> Show FPS (debug)','<input data-static-fps type="checkbox"> \u663e\u793a FPS\uff08\u8c03\u8bd5\uff09');dialog.querySelector('.rowing-options').append(fpsOption);fpsOption.querySelector('input').onchange=e=>dynamic.setFPS(e.target.checked);
   opacityControl.oninput=()=>{lastAssessment=draw(lastPose);};
   syncMirror();syncVoice();
   dialog.querySelector('[data-close]').onclick=close;
-  retry.onclick=relocate.onclick=()=>close();
+  retry.onclick=relocate.onclick=()=>close({keepCamera:true});
   rowingCheckpoints[id].forEach((key,i)=>{const b=document.createElement('button');b.type='button';b.textContent=`${i+1}. ${tr(key.en,key.zh)}`;b.onclick=()=>selectCheckpoint(i);steps.append(b);});
   dialog.showModal();selectCheckpoint(0);update(lastAssessment);void startLockedCamera(external);
   const bar=dialog.querySelector('.rowing-voice-bar');
@@ -338,5 +456,6 @@ export function createRowingCorrection({beforeOpen,getLanguage,getGender=()=>"ma
    const button=document.createElement('button');button.type='button';button.className='rowing-voice';button.setAttribute(`data-rowing-${action}`,'');button.textContent=tr(en,zh);button.onclick=handler;bar.append(button);
   }
   onControls(bar);
+  if(dynamicOnly){speech.reset();speechContext='';dynamic.enter();}
  },close};
 }

@@ -1,6 +1,7 @@
+import {jointAngle} from './rowing-correction.mjs';
 // Arrow targets use the same projected reference as the expert mesh.
 export function rowingMovementArrow(metric,actual,reference,width,height){
- if(metric.close)return null;
+ if(metric.close||metric.estimated||metric.screenArrow===false)return null;
  let joint,pivot,target;
  if(metric.kind==='position'){
   joint=metric.joint;pivot=metric.ids[0];target=metric.targetPoint;
@@ -9,6 +10,14 @@ export function rowingMovementArrow(metric,actual,reference,width,height){
   const a=actual[pivot],b=actual[joint],r=reference[joint],rp=reference[pivot];if(!a||!b||!r||!rp)return null;
   const dx=r.x-rp.x,dy=r.y-rp.y,l=Math.hypot(dx,dy),live=Math.hypot(b.x-a.x,b.y-a.y);if(l<4||live<8)return null;
   target={x:a.x+dx/l*live,y:a.y+dy/l*live};
+  if(metric.key.startsWith('elbow')||metric.key.startsWith('knee')){
+   const proximal=actual[metric.ids[0]];if(!proximal)return null;
+   const angle=(metric.imageTarget??jointAngle(...metric.ids.map(i=>reference[i])))*Math.PI/180;
+   const base=Math.atan2(proximal.y-a.y,proximal.x-a.x),current=Math.atan2(b.y-a.y,b.x-a.x);
+   const options=[base+angle,base-angle],difference=t=>Math.abs(Math.atan2(Math.sin(t-current),Math.cos(t-current)));
+   const chosen=difference(options[0])<=difference(options[1])?options[0]:options[1];
+   target={x:a.x+Math.cos(chosen)*live,y:a.y+Math.sin(chosen)*live};
+  }
  }
  const start=actual[joint];if(!start||!target)return null;
  const dx=target.x-start.x,dy=target.y-start.y,distance=Math.hypot(dx,dy);if(distance<height*.025)return null;
@@ -40,4 +49,20 @@ export function renderRowingArrows(host,arrows,width,height){
   tip.style.offsetPath=`path("${a.path}")`;tip.style.offsetDistance=reduced?'100%':'';
  });
  host.dataset.count=String(arrows.length);
+}
+// Canvas equivalent of the static SVG, also baked into exported video frames.
+export function paintRowingArrows(ctx,arrows,{time=0,reduced=false}={}){
+ ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+ for(const a of arrows){
+  const curve=()=>{ctx.beginPath();ctx.moveTo(a.from.x,a.from.y);ctx.quadraticCurveTo(a.control.x,a.control.y,a.to.x,a.to.y);};
+  ctx.setLineDash([]);curve();ctx.strokeStyle='#12212be0';ctx.lineWidth=11;ctx.stroke();
+  curve();ctx.strokeStyle='#ffcf81';ctx.lineWidth=5;ctx.setLineDash([12,8]);ctx.lineDashOffset=reduced?0:-time*.02;ctx.stroke();
+  ctx.setLineDash([]);ctx.lineDashOffset=0;ctx.strokeStyle='#fff0c2';
+  const tip=(x,y,angle)=>{ctx.beginPath();ctx.moveTo(x-13*Math.cos(angle-.6),y-13*Math.sin(angle-.6));ctx.lineTo(x,y);ctx.lineTo(x-13*Math.cos(angle+.6),y-13*Math.sin(angle+.6));ctx.stroke();};
+  tip(a.to.x,a.to.y,Math.atan2(a.to.y-a.control.y,a.to.x-a.control.x));
+  if(!reduced){const t=(time%1600)/1600,u=1-t,x=u*u*a.from.x+2*u*t*a.control.x+t*t*a.to.x,y=u*u*a.from.y+2*u*t*a.control.y+t*t*a.to.y;
+   ctx.globalAlpha=Math.min(1,t*7,(1-t)*7);tip(x,y,Math.atan2(u*(a.control.y-a.from.y)+t*(a.to.y-a.control.y),u*(a.control.x-a.from.x)+t*(a.to.x-a.control.x)));ctx.globalAlpha=1;
+  }
+ }
+ ctx.restore();
 }

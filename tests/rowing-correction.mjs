@@ -19,6 +19,12 @@ for(const[id,keys]of Object.entries(rowingCheckpoints)){
  const empty=assessRowing(id,undefined,rowingReference(id),1000,600);assert.equal(empty.metrics.length,0);assert.ok(Object.values(fitRowingReference(rowingReference(id),{},1000,600)).every(p=>p.x>=0&&p.x<=1000&&p.y>=0&&p.y<=600));
 }
 const ref=rowingReference('rowing-arms',0),p=live(ref);
+const endOn=Array.from({length:33},()=>({x:0,y:0,visibility:0})),depth=[];
+for(const [id,x,y,z]of [[11,0,0,0],[13,0,.05,.3],[15,.2,.1,.6]]){
+ endOn[id]={x:.3+x,y:.3+y,visibility:1};depth[id]={x,y,z};
+}
+const guarded=assessRowing('rowing-arms',endOn,ref,1000,1000,{world:depth,source:(await import('../src/captured-motion.mjs')).sampleCapturedMotion('rowing-arms',1.6).coords,yaw:1.2,preferWorld:true,conservativeDepth:true});
+assert.ok(guarded.metrics.some(m=>m.key==='elbow-0'&&m.depthUncertain&&m.guidanceOnly),'A visible but foreshortened limb must not become a certain depth correction');
 for(const n of [23,24,25,26,27,28])p[n].visibility=0;
 assert.equal(assessRowing('rowing-arms',p,ref,1000,1000).metrics.length,2,'Arms must work without hips or legs');
 p[15]={x:NaN,y:.5,visibility:1};assert.equal(assessRowing('rowing-arms',p,ref,1000,1000).metrics.length,1);

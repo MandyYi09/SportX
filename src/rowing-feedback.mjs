@@ -57,7 +57,10 @@ export function rowingAdjustmentCue(metric){
  if(metric.key.startsWith('height'))return {en:`${metric.direction==='down'?'Lower':'Raise'} your ${right?'right':'left'} elbow`,zh:`${right?'右':'左'}肘${metric.direction==='down'?'放低':'抬高'}一点`};
  if(metric.key.startsWith('elbow'))return {en:`${open?'Straighten':'Bend'} your ${right?'right':'left'} elbow a little`,zh:`${right?'右':'左'}肘再${open?'伸直':'弯曲'}一点`};
  if(metric.key.startsWith('knee'))return {en:`${open?'Straighten':'Bend'} your ${right?'right':'left'} knee a little`,zh:`${right?'右':'左'}膝再${open?'伸直':'弯曲'}一点`};
- if(metric.key.startsWith('trunk'))return {en:`${open?'Open':'Narrow'} the angle between your ${right?'right':'left'} upper arm and torso`,zh:`${right?'右':'左'}上臂与躯干的夹角再${open?'打开':'收小'}一点`};
+ if(metric.key.startsWith('trunk')){
+  if(!metric.movementDirection)return {en:`Adjust your ${right?'right':'left'} upper arm to match the reference`,zh:`${right?'右':'左'}上臂对照专家调整`};
+  const up=metric.movementDirection==='up';return {en:`${up?'Raise':'Lower'} your ${right?'right':'left'} upper arm a little`,zh:`${right?'右':'左'}上臂${up?'抬高':'放低'}一点`};
+ }
  return {en:`${open?'Open':'Narrow'} the angle between your torso and ${right?'right':'left'} thigh`,zh:`上身与${right?'右':'左'}大腿的夹角再${open?'打开':'收小'}一点`};
 }
 export function rowingFeedbackSegments(connections,errors,resolved){

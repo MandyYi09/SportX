@@ -1,4 +1,5 @@
 import {sampleCapturedMotion} from './captured-motion.mjs';
+import {jointEvidenceWeight} from './rowing-pose-evidence.mjs';
 
 // Reviewed static instants within the current captured windows (seconds, not video timecodes).
 // Half stroke in this recording is predominantly arms + body, with almost straight knees.
@@ -31,10 +32,32 @@ export function jointAngle(a,b,c){
  const u=[a.x-b.x,a.y-b.y],v=[c.x-b.x,c.y-b.y],d=Math.hypot(...u)*Math.hypot(...v);
  return d>1e-8?Math.acos(Math.max(-1,Math.min(1,(u[0]*v[0]+u[1]*v[1])/d)))*180/Math.PI:NaN;
 }
+export function jointAngle3D(a,b,c){
+ if(![a,b,c].every(p=>p&&[p.x,p.y,p.z].every(Number.isFinite)))return NaN;
+ const u=[a.x-b.x,a.y-b.y,a.z-b.z],v=[c.x-b.x,c.y-b.y,c.z-b.z],length=Math.hypot(...u)*Math.hypot(...v);
+ return length>1e-8?Math.acos(Math.max(-1,Math.min(1,u.reduce((s,n,i)=>s+n*v[i],0)/length)))*180/Math.PI:NaN;
+}
+export function rowingMetricDefinitions(id){
+ return [0,1].flatMap(s=>[
+  {key:`elbow-${s}`,part:s?'Right elbow':'Left elbow',zh:s?'右肘':'左肘',ids:[11+s,13+s,15+s],tolerance:18},
+  {key:`trunk-${s}`,part:s?'Right arm / torso':'Left arm / torso',zh:s?'右臂与躯干':'左臂与躯干',ids:[23+s,11+s,13+s],tolerance:18},
+  ...(id==='rowing-arms'?[]:[{key:`hip-${s}`,part:s?'Right hip':'Left hip',zh:s?'右髋':'左髋',ids:[11+s,23+s,25+s],tolerance:18}]),
+  ...(id==='rowing-full'?[{key:`knee-${s}`,part:s?'Right knee':'Left knee',zh:s?'右膝':'左膝',ids:[23+s,25+s,27+s],tolerance:18}]:[]),
+ ]);
+}
 export function rowingReference(id,index=0,facing=1,yaw=0){
  const key=rowingCheckpoints[id]?.[index];if(!key)throw Error('Unknown rowing checkpoint');
- const sample=sampleCapturedMotion(id,key.time);if(!sample)throw Error('Rowing capture unavailable');
+ return rowingReferenceAt(id,key.time,facing,yaw);
+}
+export function rowingReferenceAt(id,time=0,facing=1,yaw=0){
+ const sample=sampleCapturedMotion(id,time);if(!sample)throw Error('Rowing capture unavailable');
  return Object.fromEntries(rowingIds.map((n,i)=>[n,{x:(sample.coords[i][0]*Math.cos(yaw)+sample.coords[i][2]*Math.sin(yaw))*facing,y:-sample.coords[i][1]}]));
+}
+// Completion requires every required joint and angle in this same observation.
+export function rowingCheckpointComplete(id,assessment){
+ const required=id==='rowing-arms'?4:id==='rowing-half'?6:8;
+ return !assessment.small&&!assessment.missing.length&&!assessment.occluded.length&&!(assessment.inferred?.length)&&
+  assessment.metrics.filter(m=>!m.guidanceOnly).length===required&&assessment.metrics.every(m=>m.close);
 }
 export function inferRowingFacing(p,side,width,height){
  const s=p?.[11+side],a=p?.[27+side];
@@ -43,33 +66,46 @@ export function inferRowingFacing(p,side,width,height){
  if([s,e,w].every(visible)&&jointAngle(s,e,w)>145&&Math.abs(w.x-s.x)*width>height*.1)return w.x<s.x?1:-1;
  return null;
 }
-export function assessRowing(id,p,ref,width,height,{world=null,source=null,yaw=0}={}){
+export function assessRowing(id,p,ref,width,height,{world=null,source=null,yaw=0,preferWorld=false,conservativeDepth=false}={}){
  const actual=Object.fromEntries(rowingIds.filter(i=>visible(p?.[i])).map(i=>[i,{x:p[i].x*width,y:p[i].y*height}]));
- const definitions=[];
- for(const s of [0,1]){
-  definitions.push({key:`elbow-${s}`,part:s?'Right elbow':'Left elbow',zh:s?'右肘':'左肘',ids:[11+s,13+s,15+s],tolerance:18});
-  definitions.push({key:`trunk-${s}`,part:s?'Right arm / torso':'Left arm / torso',zh:s?'右臂与躯干':'左臂与躯干',ids:[23+s,11+s,13+s],tolerance:18});
-  if(id!=='rowing-arms')definitions.push({key:`hip-${s}`,part:s?'Right hip':'Left hip',zh:s?'右髋':'左髋',ids:[11+s,23+s,25+s],tolerance:18});
-  if(id==='rowing-full')definitions.push({key:`knee-${s}`,part:s?'Right knee':'Left knee',zh:s?'右膝':'左膝',ids:[23+s,25+s,27+s],tolerance:18});
- }
+ const definitions=rowingMetricDefinitions(id);
+ const worldConsistent=(a,b)=>{
+  const u=world?.[a],v=world?.[b],p=actual[a],q=actual[b];if(!u||!v||!p||!q)return false;
+  const dx=v.x-u.x,dy=v.y-u.y,x=q.x-p.x,y=q.y-p.y,length=Math.hypot(dx,dy)*Math.hypot(x,y);
+  return length>1e-5?(dx*x+dy*y)/length>.7:Math.hypot(x,y)<height*.03;
+ };
  const observable=ids=>{
   if(!source)return true; // Existing callers use the original side-view rules.
   for(let k=0;k<2;k++){
    const a=ids[k],b=ids[k+1],i=rowingIds.indexOf(a),j=rowingIds.indexOf(b);
    const dx=source[j][0]-source[i][0],dy=source[j][1]-source[i][1],dz=source[j][2]-source[i][2];
    if(Math.hypot(dx*Math.cos(yaw)+dz*Math.sin(yaw),dy)/Math.hypot(dx,dy,dz)<.40)return false;
-   if(world?.[a]&&world?.[b]){
+   if(world?.[a]&&world?.[b]&&worldConsistent(a,b)){
     const u=world[a],v=world[b],full=Math.hypot(v.x-u.x,v.y-u.y,v.z-u.z);
     if(!Number.isFinite(full)||full<.02||Math.hypot(v.x-u.x,v.y-u.y)/full<.40)return false;
    }
   }
   return true;
  };
- const occluded=definitions.filter(d=>d.ids.every(i=>actual[i])&&!observable(d.ids));
- const metrics=definitions.filter(d=>d.ids.every(i=>actual[i])&&observable(d.ids)).map(d=>{
-  const a=jointAngle(...d.ids.map(i=>actual[i])),target=jointAngle(...d.ids.map(i=>ref[i]));
-  return {...d,actual:a,target,delta:Math.abs(a-target),close:Math.abs(a-target)<=d.tolerance};
- }).filter(d=>Number.isFinite(d.delta));
+ const metrics=[],occluded=[];
+ for(const d of definitions){
+  if(!d.ids.every(i=>actual[i]))continue;
+  const projected=observable(d.ids),estimated=d.ids.some(i=>p[i]?.inferred);
+  let a=jointAngle(...d.ids.map(i=>actual[i])),target=jointAngle(...d.ids.map(i=>ref[i])),depthUncertain=false;
+  const imageAngle=a,imageTarget=target;
+  if(!projected||preferWorld&&world){
+   const reliable=source&&!estimated&&[0,1].every(k=>worldConsistent(d.ids[k],d.ids[k+1]))&&d.ids.every(i=>world?.[i]&&!world[i].inferred&&[world[i].x,world[i].y,world[i].z].every(Number.isFinite))&&
+    [0,1].every(k=>{const u=world[d.ids[k]],v=world[d.ids[k+1]],length=Math.hypot(u.x-v.x,u.y-v.y,u.z-v.z);return length>.04&&length<.9;});
+   if(!reliable){occluded.push(d);continue;}
+   a=jointAngle3D(...d.ids.map(i=>world[i]));target=jointAngle3D(...d.ids.map(i=>{const c=source[rowingIds.indexOf(i)];return {x:c[0],y:c[1],z:c[2]};}));
+   // Model-provided depth has no calibrated confidence. A foreshortened bone
+   // or a large image/depth disagreement cannot justify a certain correction.
+   depthUncertain=conservativeDepth&&(Math.abs(a-imageAngle)>35||[0,1].some(k=>{
+    const u=world[d.ids[k]],v=world[d.ids[k+1]];return Math.hypot(v.x-u.x,v.y-u.y)/Math.hypot(v.x-u.x,v.y-u.y,v.z-u.z)<.45;
+   }));
+  }
+  if(Number.isFinite(a)&&Number.isFinite(target))metrics.push({...d,actual:a,target,imageAngle,imageTarget,delta:Math.abs(a-target),close:Math.abs(a-target)<=d.tolerance,space:!projected||preferWorld&&world?'world':'image',screenArrow:projected&&!depthUncertain&&(!(preferWorld&&world)||(imageAngle-imageTarget)*(a-target)>0),estimated,depthUncertain,guidanceOnly:estimated||depthUncertain});
+ }
  // Elevation remains observable when a wrist is cropped or the target arm points
  // into the lens. It is a screen-space cue, not an inferred elbow bend.
  const positionMetrics=[];
@@ -96,6 +132,12 @@ export function assessRowing(id,p,ref,width,height,{world=null,source=null,yaw=0
   }
  }
  metrics.push(...positionMetrics);
+ for(const m of metrics)if(m.key.startsWith('trunk')){
+  const height=positionMetrics.find(h=>h.key.endsWith(m.key.slice(-2)));
+  m.movementDirection=height&&!height.close?height.direction:null;
+ }
+ const inferred=rowingIds.filter(i=>p?.[i]?.inferred&&actual[i]);
+ for(const metric of metrics)if(metric.ids.some(i=>p?.[i]?.inferred)){metric.estimated=true;metric.inferenceWeight=Math.min(...metric.ids.map(i=>jointEvidenceWeight(p[i])));metric.guidanceOnly=metric.kind==='position'||metric.inferenceWeight<.25;}
  const missing=[];
  const names={11:['left shoulder','左肩'],12:['right shoulder','右肩'],13:['left elbow','左肘'],14:['right elbow','右肘'],15:['left wrist','左腕'],16:['right wrist','右腕'],23:['left hip','左髋'],24:['right hip','右髋'],25:['left knee','左膝'],26:['right knee','右膝'],27:['left ankle','左踝'],28:['right ankle','右踝']};
  const required=id==='rowing-arms'?[11,12,13,14,15,16]:id==='rowing-half'?[11,12,13,14,15,16,23,24,25,26]:Object.keys(names).map(Number);
@@ -107,7 +149,7 @@ export function assessRowing(id,p,ref,width,height,{world=null,source=null,yaw=0
  const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
  // A short projected arm may point into the lens; it does not mean the body is distant.
  const small=!!(s&&e&&distance(s,e)<height*.055&&(!hip||distance(s,hip)<height*.10)&&(!actual[11]||!actual[12]||distance(actual[11],actual[12])<height*.08));
- return {actual,metrics,missing,small,side,occluded};
+ return {actual,metrics,missing,small,side,occluded,inferred};
 }
 // Align by one visible bone, preserving reference angles. Missing hips never block arm feedback.
 export function fitRowingReference(ref,actual,width,height,side=0){

@@ -1,7 +1,7 @@
 import {spawn} from 'node:child_process';
 import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
-const chrome=spawn('C:/Program Files/Google/Chrome/Application/chrome.exe',['--headless=new','--mute-audio','--no-first-run','--no-default-browser-check','--remote-debugging-port=9226','--user-data-dir='+process.cwd()+'/.local/rowing-browser','--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream','http://127.0.0.1:5187'],{windowsHide:true,stdio:'ignore'});
+const chrome=spawn((process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe'),['--headless=new','--mute-audio','--no-first-run','--no-default-browser-check','--remote-debugging-port=9226','--user-data-dir='+process.cwd()+'/.local/rowing-browser','--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream','http://127.0.0.1:5187/?movement=rowing-arms'],{windowsHide:true,stdio:'ignore'});
 let ws;
 try{
  let pages;for(let i=0;i<60;i++){try{pages=await(await fetch('http://127.0.0.1:9226/json/list')).json();if(pages.some(p=>p.type==='page'))break;}catch{}await new Promise(r=>setTimeout(r,250));}
@@ -14,6 +14,7 @@ try{
  }};
  const run=async expression=>{const r=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true,userGesture:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
  const wait=ms=>new Promise(r=>setTimeout(r,ms));
+ async function ensureCameraReady(){if(!await run(`document.getElementById('demo-video').srcObject?.active`))await run(`document.getElementById('camera').click()`);for(let i=0;i<100;i++){if(await run(`!document.getElementById('start-rowing-correction').disabled`))return;await wait(150);}throw Error('Camera preparation timed out');}
  await send('Page.enable');
  await send('Page.addScriptToEvaluateOnNewDocument',{source:`
   globalThis.__recognitions=[];
@@ -30,7 +31,7 @@ try{
  await run(`document.querySelector('[data-language="zh"]').click();document.querySelector('#rowing-preparation [data-rowing-voice]').click();document.querySelector('#rowing-preparation [data-rowing-voice]').click();document.querySelector('[data-language="en"]').click()`);
  await wait(2100);
  assert.deepEqual(await run(`__voicePlays`),[],'Before enabling the camera, language and voice controls must never start spoken cues');
- assert.deepEqual(await run(`({disabled:document.querySelector('#rowing-preparation [data-rowing-voice]').disabled,text:document.querySelector('#rowing-preparation [data-rowing-voice]').textContent})`),{disabled:true,text:'Voice · N/A'},'Speech is unavailable before voice-control opt-in');
+ assert.deepEqual(await run(`({disabled:document.querySelector('#rowing-preparation [data-rowing-voice]').disabled,text:document.querySelector('#rowing-preparation [data-rowing-voice]').textContent})`),{disabled:false,text:'Speech · On'},'Speech is independent of microphone opt-in');
  await run(`document.querySelector('[data-voice-control]').click()`);
  await run(`(()=>{document.querySelector('[data-gender="male"]').click();navigator.mediaDevices.getUserMedia=async()=>{const c=document.createElement('canvas');c.width=960;c.height=540;const ctx=c.getContext('2d');const stream=c.captureStream(12);const timer=setInterval(()=>{if(stream.getTracks().every(t=>t.readyState==='ended')){clearInterval(timer);return;}ctx.fillStyle='#253b49';ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle='#617a8a';ctx.fillText('Simulated camera · '+Date.now(),20,30);},80);return stream;};navigator.mediaDevices.enumerateDevices=async()=>[{kind:'videoinput',deviceId:'test-camera',label:'Simulated camera'}];document.getElementById('camera').click();})()`);
  assert.equal(await run(`document.getElementById('rowing-correction').open`),false,'Preparation must stay outside the correction dialog');
@@ -121,7 +122,7 @@ try{
  assert.equal(await run(`__voicePlays.length`),await run(`__voiceMutedAt`),'Mute must cancel playback scheduling');assert.equal(await run(`document.querySelector('#rowing-preparation [data-rowing-voice]').getAttribute('aria-pressed')`),'false','Voice toggles must share state');
  await run(`document.querySelector('#rowing-correction [data-rowing-voice]').click()`);await wait(500);
  await fs.writeFile('artifacts/rowing-raised-right-arm.png',Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
- await run(`document.querySelector('[data-relocate]').click();__setRowAngle(37)`);await wait(1400);await run(`document.getElementById('start-rowing-correction').click()`);await wait(4200);
+ await run(`document.querySelector('[data-relocate]').click();__setRowAngle(37)`);await ensureCameraReady();await run(`document.getElementById('start-rowing-correction').click()`);await wait(4200);
  await fs.writeFile('artifacts/rowing-correction-desktop.png',Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
  await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await wait(400);
  assert.equal(await run(`document.querySelector('#rowing-correction').scrollWidth>document.querySelector('#rowing-correction').clientWidth`),false);
@@ -129,10 +130,10 @@ try{
  await run(`globalThis.__testStream=document.querySelector('#rowing-correction video').srcObject;document.querySelector('#rowing-correction [data-close]').click()`);
  assert.equal(await run(`__testStream.getTracks().every(t=>t.readyState==='ended')`),true,'Close releases camera');
  for(const[id,count]of [['rowing-half',3],['rowing-full',4]]){
-  await run(`document.querySelector('[data-pose="${id}"]').click()`);await wait(1300);await run(`document.getElementById('start-rowing-correction').click()`);assert.equal(await run(`document.querySelectorAll('.rowing-checkpoints button').length`),count);await run(`document.querySelector('#rowing-correction [data-close]').click()`);
+  await run(`document.querySelector('[data-pose="${id}"]').click()`);await ensureCameraReady();await run(`document.getElementById('start-rowing-correction').click()`);assert.equal(await run(`document.querySelectorAll('.rowing-checkpoints button').length`),count);await run(`document.querySelector('#rowing-correction [data-close]').click()`);
  }
- await wait(1300);await run(`document.querySelector('[data-gender="female"]').click();document.querySelector('[data-language="zh"]').click();document.getElementById('start-rowing-correction').click()`);assert.equal(await run(`document.querySelector('#rowing-correction canvas').dataset.expertModel`),'female');assert.equal(await run(`document.querySelector('#rowing-correction h2').textContent`),'找到你的姿态');await run(`document.querySelector('#rowing-correction [data-close]').click()`);
- await wait(1400);await run(`document.getElementById('start-rowing-correction').click()`);await wait(700);
+ await ensureCameraReady();await run(`document.querySelector('[data-gender="female"]').click();document.querySelector('[data-language="zh"]').click();document.getElementById('start-rowing-correction').click()`);assert.equal(await run(`document.querySelector('#rowing-correction canvas').dataset.expertModel`),'female');assert.equal(await run(`document.querySelector('#rowing-correction h2').textContent`),'找到你的姿态');await run(`document.querySelector('#rowing-correction [data-close]').click()`);
+ await ensureCameraReady();await run(`document.getElementById('start-rowing-correction').click()`);await wait(700);
  assert.ok(await run(`__voicePlays.some(url=>url.includes('/zh/checkpoint-'))`),'Chinese UI must play Mandarin assets');await run(`document.querySelector('#rowing-correction [data-close]').click()`);
  assert.deepEqual(await run(`__voiceFailures.filter(error=>error.name!=='AbortError')`),[],'Actual audio playback must decode without rejection; replacing stale speech may abort a pending play');
  // Native STT is mocked here; real microphone/service support is tested on devices.
@@ -141,7 +142,7 @@ try{
   assert.equal(await run(`!!__recognitions.at(-1)?.active`),true,'Voice control should resume after TTS');
   await run(`__recognitions.at(-1).input(${JSON.stringify((/[\u3400-\u9fff]/.test(text)?'教练，':'Coach, ')+text)})`);await wait(650);
  };
- await wait(1400);await run(`document.getElementById('start-rowing-correction').click()`);await wait(700);
+ await ensureCameraReady();await run(`document.getElementById('start-rowing-correction').click()`);await wait(700);
  assert.equal(await run(`document.querySelector('#rowing-correction [data-voice-control]').getAttribute('aria-pressed')`),'true');
  // Language is explicit and independent from the Chinese interface.
  await run(`(()=>{const selector=document.querySelector('#rowing-correction [data-speech-language]');selector.value='en';selector.dispatchEvent(new Event('change'));})()`);await wait(600);
@@ -180,7 +181,7 @@ try{
  assert.equal(await run(`document.querySelector('[data-voice-control]').getAttribute('aria-pressed')`),'true','Stopping video retains voice control');
  await sayCommand('打开摄像头');await wait(1400);
  assert.equal(await run(`document.querySelector('#rowing-preparation').dataset.phase`),'ready');
- await sayCommand('关闭语音控制');assert.deepEqual(await run(`({disabled:document.querySelector('#rowing-preparation [data-rowing-voice]').disabled,text:document.querySelector('#rowing-preparation [data-rowing-voice]').textContent})`),{disabled:true,text:'语音 · 未启用'});assert.equal(await run(`document.querySelector('[data-voice-control]').getAttribute('aria-pressed')`),'false');
+ await sayCommand('关闭语音控制');assert.deepEqual(await run(`({disabled:document.querySelector('#rowing-preparation [data-rowing-voice]').disabled,text:document.querySelector('#rowing-preparation [data-rowing-voice]').textContent})`),{disabled:false,text:'播报 · 开'});assert.equal(await run(`document.querySelector('[data-voice-control]').getAttribute('aria-pressed')`),'false');
  await run(`document.getElementById('camera').click()`);await run(`document.querySelector('[data-filter="tennis"]').click()`);assert.equal(await run(`document.getElementById('three').style.transform`),'','Rowing mirror must not affect other sports');await run(`document.querySelector('[data-filter="rowing"]').click()`);assert.equal(await run(`document.getElementById('three').style.transform`),'scaleX(-1)','Rowing mirror preference must survive movement changes');assert.equal(await run(`document.getElementById('start-rowing-correction').disabled`),true,'Stopping camera clears outside calibration');
  await run(`navigator.mediaDevices.getUserMedia=async()=>{throw Object.assign(new Error('Denied'),{name:'NotAllowedError'})};document.getElementById('camera').click()`);await wait(300);assert.equal(await run(`document.getElementById('rowing-correction').open`),false,'Camera failure must stay outside');
  console.log('PASS: mocked bilingual voice commands, stage wrapping, camera voice lifecycle, review/return without reposition or stale speech, actual prerecorded EN/ZH playback, correction/confirmation cues, shared mute, cropped-wrist right-arm feedback, animated downward arrow, expert emphasis before overlay, expert-first demonstration/retry cycle, concise alignment confirmation, error-only arm overlay, corrected-arm flash then hide, synchronized outside/inside mirror, preserved locked yaw and correction values, sport isolation, outside preparation + main model rotation, immediate locked entry, explicit lock, yaw drift pause, reposition, front-view projection, end-on feedback exclusion, translucent clothed expert model, opacity, model gender, immediate modal, mocked inference + canvas video stream, partial arm feedback, desktop/mobile fit, checkpoints, localization, pending-start cancellation and stream release.');console.log('PARTIAL',partial);assert.equal(errors.length,0,JSON.stringify(errors));
